@@ -1,0 +1,39 @@
+# Django Core
+Django==5.0.1
+djangorestframework==3.14.0
+
+# Environment Variables
+python-decouple==3.8
+
+# Database
+psycopg2-binary==2.9.9
+
+# Image Processing
+Pillow==10.2.0
+
+# CORS
+django-cors-headers==4.3.1
+
+# Authentication
+djangorestframework-simplejwt==5.3.0
+
+# API Documentation
+drf-spectacular==0.26.5
+
+# Utilities
+python-dotenv==1.0.0
+pytz==2024.1
+
+# Development
+django-debug-toolbar==4.2.0
+ipython==8.18.1
+
+# Testing
+pytest==7.4.3
+pytest-django==4.7.0
+pytest-cov==4.1.0
+
+# Code Quality
+black==23.12.1
+flake8==7.0.0
+isort==5.13.2
