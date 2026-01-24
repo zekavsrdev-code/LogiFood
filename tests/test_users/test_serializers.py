@@ -39,6 +39,8 @@ class TestUserRegistrationSerializer:
             'password2': 'TestPass123!',
             'first_name': 'New',
             'last_name': 'User',
+            'role': 'SELLER',
+            'business_name': 'Test Business',
         }
         serializer = UserRegistrationSerializer(data=data)
         assert serializer.is_valid()
@@ -50,6 +52,8 @@ class TestUserRegistrationSerializer:
             'username': 'newuser',
             'password': 'TestPass123!',
             'password2': 'DifferentPass123!',
+            'role': 'SELLER',
+            'business_name': 'Test Business',
         }
         serializer = UserRegistrationSerializer(data=data)
         assert not serializer.is_valid()

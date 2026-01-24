@@ -17,13 +17,15 @@ class TestUserModel:
         user = User.objects.create_user(
             email='test@example.com',
             username='testuser',
-            password='testpass123'
+            password='testpass123',
+            role=User.Role.SELLER
         )
         assert user.email == 'test@example.com'
         assert user.username == 'testuser'
         assert user.check_password('testpass123')
         assert not user.is_staff
         assert not user.is_superuser
+        assert user.role == User.Role.SELLER
     
     def test_create_superuser(self):
         """Test creating a superuser"""
@@ -40,20 +42,24 @@ class TestUserModel:
         user = User.objects.create_user(
             email='test@example.com',
             username='testuser',
-            password='testpass123'
+            password='testpass123',
+            role=User.Role.SELLER
         )
-        assert str(user) == 'test@example.com'
+        assert str(user) == 'testuser (Satıcı)'
     
     def test_user_email_unique(self):
-        """Test that email must be unique"""
+        """Test that email can be duplicate (email is no longer unique)"""
         User.objects.create_user(
             email='test@example.com',
             username='testuser1',
-            password='testpass123'
+            password='testpass123',
+            role=User.Role.SELLER
         )
-        with pytest.raises(Exception):  # IntegrityError
-            User.objects.create_user(
-                email='test@example.com',
-                username='testuser2',
-                password='testpass123'
-            )
+        # Email is no longer unique, so this should succeed
+        user2 = User.objects.create_user(
+            email='test@example.com',
+            username='testuser2',
+            password='testpass123',
+            role=User.Role.SELLER
+        )
+        assert user2.email == 'test@example.com'

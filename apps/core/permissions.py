@@ -27,3 +27,45 @@ class IsAdminOrReadOnly(permissions.BasePermission):
         if request.method in permissions.SAFE_METHODS:
             return True
         return request.user and request.user.is_staff
+
+
+class IsSupplier(permissions.BasePermission):
+    """
+    Sadece Tedarikçiler için izin
+    """
+    message = 'Bu işlem sadece tedarikçiler için geçerlidir.'
+    
+    def has_permission(self, request, view):
+        return (
+            request.user and 
+            request.user.is_authenticated and 
+            request.user.is_supplier
+        )
+
+
+class IsSeller(permissions.BasePermission):
+    """
+    Sadece Satıcılar için izin
+    """
+    message = 'Bu işlem sadece satıcılar için geçerlidir.'
+    
+    def has_permission(self, request, view):
+        return (
+            request.user and 
+            request.user.is_authenticated and 
+            request.user.is_seller
+        )
+
+
+class IsDriver(permissions.BasePermission):
+    """
+    Sadece Sürücüler için izin
+    """
+    message = 'Bu işlem sadece sürücüler için geçerlidir.'
+    
+    def has_permission(self, request, view):
+        return (
+            request.user and 
+            request.user.is_authenticated and 
+            request.user.is_driver
+        )

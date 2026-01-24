@@ -21,6 +21,8 @@ urlpatterns = [
     
     # API Routes
     path('api/auth/', include('src.users.urls')),
+    path('api/products/', include('src.products.urls')),
+    path('api/orders/', include('src.orders.urls')),
     path('api/', include('apps.core.urls')),
 ]
 
@@ -30,7 +32,10 @@ if settings.DEBUG:
     urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
     
     # Django Debug Toolbar
-    import debug_toolbar
-    urlpatterns = [
-        path('__debug__/', include(debug_toolbar.urls)),
-    ] + urlpatterns
+    try:
+        import debug_toolbar
+        urlpatterns = [
+            path('__debug__/', include(debug_toolbar.urls)),
+        ] + urlpatterns
+    except ImportError:
+        pass

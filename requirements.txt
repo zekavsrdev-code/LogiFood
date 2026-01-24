@@ -20,6 +20,9 @@ djangorestframework-simplejwt==5.3.0
 # API Documentation
 drf-spectacular==0.26.5
 
+# Filtering
+django-filter==23.5
+
 # Utilities
 python-dotenv==1.0.0
 pytz==2024.1

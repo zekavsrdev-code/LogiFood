@@ -21,6 +21,8 @@ class TestUserRegistration:
             'password2': 'newpass123',
             'first_name': 'New',
             'last_name': 'User',
+            'role': 'SELLER',
+            'business_name': 'Test Business',
         }
         response = api_client.post('/api/auth/register/', data, format='json')
         assert response.status_code == status.HTTP_201_CREATED
@@ -35,6 +37,8 @@ class TestUserRegistration:
             'username': 'newuser',
             'password': 'newpass123',
             'password2': 'differentpass',
+            'role': 'SELLER',
+            'business_name': 'Test Business',
         }
         response = api_client.post('/api/auth/register/', data, format='json')
         assert response.status_code == status.HTTP_400_BAD_REQUEST
@@ -47,7 +51,7 @@ class TestUserLogin:
     def test_login_success(self, api_client, user):
         """Test successful login"""
         data = {
-            'email': 'test@example.com',
+            'username': 'testuser',
             'password': 'testpass123',
         }
         response = api_client.post('/api/auth/login/', data, format='json')
@@ -58,7 +62,7 @@ class TestUserLogin:
     def test_login_invalid_credentials(self, api_client):
         """Test login with invalid credentials"""
         data = {
-            'email': 'wrong@example.com',
+            'username': 'wronguser',
             'password': 'wrongpass',
         }
         response = api_client.post('/api/auth/login/', data, format='json')

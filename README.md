@@ -1,6 +1,12 @@
 # LogiFood - Professional Django REST API
 
-A professionally structured Django REST API project with layered architecture, environment configuration, and best practices.
+Tedarikçi (Supplier), Satıcı (Seller) ve Sürücü (Driver) rollerinin birbirini bulmasını sağlayan profesyonel bir lojistik ve ürün satış platformu.
+
+## Sistem Özeti
+
+- **Tedarikçi (Supplier)**: Ürünleri sisteme ekler ve satışa sunar
+- **Satıcı (Seller)**: Tedarikçilerden ürün sipariş eder
+- **Sürücü (Driver)**: Siparişleri teslim eder
 
 ## 🏗️ Project Structure
 
@@ -137,12 +143,26 @@ cp .env.example .env
 python manage.py migrate
 ```
 
-4. Create a superuser:
+4. Load initial data (market food categories):
+```bash
+python manage.py load_categories
+```
+
+This command loads market food categories including:
+- **Main Categories**: Citrus Fruits, Vegetables, Fruits, Legumes, Grains, Dairy Products, Meat and Meat Products, Fish and Seafood, Nuts and Dried Fruits, Spices and Herbs, Bakery Products, Beverages, Oils and Fats, Honey and Natural Products
+- **Sub-categories**: Leafy Vegetables, Root Vegetables, Nightshade Vegetables, Cucurbitaceae (under Vegetables); Stone Fruits, Berries, Tropical Fruits (under Fruits); Red Meat, Poultry, Processed Meat (under Meat); Milk and Cream, Cheese, Yogurt and Fermented Products (under Dairy)
+
+To reset and reload all categories:
+```bash
+python manage.py load_categories --reset
+```
+
+5. Create a superuser:
 ```bash
 python manage.py createsuperuser
 ```
 
-5. Run the development server:
+6. Run the development server:
 ```bash
 python manage.py runserver
 ```
@@ -193,27 +213,61 @@ Once the server is running, access the API documentation:
 
 ## 🔐 Authentication
 
-The project uses JWT (JSON Web Tokens) for authentication.
+Proje JWT (JSON Web Tokens) ile kimlik doğrulama kullanır. **Email zorunlu değildir, username ile login yapılır.**
 
-### Register a new user:
+### Tedarikçi Kaydı (Supplier):
 ```bash
 POST /api/auth/register/
 {
-    "email": "user@example.com",
-    "username": "username",
-    "password": "securepassword",
-    "password2": "securepassword",
-    "first_name": "John",
-    "last_name": "Doe"
+    "username": "tedarikci1",
+    "password": "securepassword123",
+    "password2": "securepassword123",
+    "role": "SUPPLIER",
+    "company_name": "ABC Gıda Ltd.",
+    "phone_number": "05551234567",
+    "city": "İstanbul",
+    "address": "Ataşehir, İstanbul"
 }
 ```
 
-### Login:
+### Satıcı Kaydı (Seller):
+```bash
+POST /api/auth/register/
+{
+    "username": "satici1",
+    "password": "securepassword123",
+    "password2": "securepassword123",
+    "role": "SELLER",
+    "business_name": "Merkez Market",
+    "business_type": "Market",
+    "phone_number": "05559876543",
+    "city": "Ankara",
+    "address": "Çankaya, Ankara"
+}
+```
+
+### Sürücü Kaydı (Driver):
+```bash
+POST /api/auth/register/
+{
+    "username": "surucu1",
+    "password": "securepassword123",
+    "password2": "securepassword123",
+    "role": "DRIVER",
+    "license_number": "34ABC123",
+    "vehicle_type": "VAN",
+    "vehicle_plate": "34 ABC 123",
+    "phone_number": "05557654321",
+    "city": "İstanbul"
+}
+```
+
+### Login (Username ile):
 ```bash
 POST /api/auth/login/
 {
-    "email": "user@example.com",
-    "password": "securepassword"
+    "username": "tedarikci1",
+    "password": "securepassword123"
 }
 ```
 
@@ -222,6 +276,48 @@ Include the JWT token in the Authorization header:
 ```
 Authorization: Bearer <access_token>
 ```
+
+## 📦 API Endpoints
+
+### Auth Endpoints
+| Method | URL | Açıklama |
+|--------|-----|----------|
+| POST | `/api/auth/register/` | Kullanıcı kaydı (rol bazlı) |
+| POST | `/api/auth/login/` | Giriş (username ile) |
+| POST | `/api/auth/logout/` | Çıkış |
+| GET/PUT | `/api/auth/profile/` | Profil görüntüle/güncelle |
+| GET/PUT | `/api/auth/profile/role/` | Rol profili görüntüle/güncelle |
+| POST | `/api/auth/change-password/` | Şifre değiştir |
+| PUT | `/api/auth/toggle-availability/` | Sürücü müsaitlik durumu |
+
+### Product Endpoints
+| Method | URL | Açıklama |
+|--------|-----|----------|
+| GET | `/api/products/` | Tüm ürünleri listele |
+| GET | `/api/products/<id>/` | Ürün detayı |
+| GET/POST | `/api/my-products/` | Tedarikçi ürünleri (kendi) |
+| GET/PUT/DELETE | `/api/my-products/<id>/` | Tedarikçi ürün yönetimi |
+
+### Order Endpoints
+| Method | URL | Açıklama |
+|--------|-----|----------|
+| GET/POST | `/api/orders/` | Siparişler (rol bazlı) |
+| GET | `/api/orders/<id>/` | Sipariş detayı |
+| PUT | `/api/orders/<id>/status/` | Sipariş durumu güncelle |
+| PUT | `/api/orders/<id>/assign-driver/` | Sürücü ata |
+
+### Discovery Endpoints (Birbirini Bulma)
+| Method | URL | Açıklama |
+|--------|-----|----------|
+| GET | `/api/suppliers/` | Tedarikçileri listele |
+| GET | `/api/drivers/` | Müsait sürücüleri listele |
+| GET | `/api/available-orders/` | Sürücüler için müsait siparişler |
+| POST | `/api/accept-order/<id>/` | Sürücü sipariş kabul |
+
+### Category Endpoints
+| Method | URL | Açıklama |
+|--------|-----|----------|
+| GET | `/api/categories/` | Kategorileri listele |
 
 ## 🧪 Testing
 
@@ -275,6 +371,19 @@ pytest tests/test_users/test_views.py::TestUserLogin::test_login_success
 ## 🛠️ Development Tools
 
 All commands below require the virtual environment to be activated.
+
+### Management Commands
+
+- **Load Categories**: Load market food categories into the database
+  ```bash
+  python manage.py load_categories
+  ```
+  To reset and reload all categories:
+  ```bash
+  python manage.py load_categories --reset
+  ```
+
+### Code Quality Tools
 
 - **Django Debug Toolbar**: Available in development mode
 - **Black**: Code formatting
