@@ -99,7 +99,10 @@ class SupplierProductViewSet(viewsets.ModelViewSet):
         return ProductSerializer
     
     def perform_create(self, serializer):
-        serializer.save(supplier=self.request.user.supplier_profile)
+        serializer.save(
+            supplier=self.request.user.supplier_profile,
+            created_by=self.request.user
+        )
     
     def perform_destroy(self, instance):
         # Soft delete - set is_active=False

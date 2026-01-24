@@ -50,9 +50,10 @@ class DealSerializer(serializers.ModelSerializer):
             'driver', 'driver_name', 'driver_detail',
             'status', 'status_display',
             'delivery_handler', 'delivery_handler_display',
-            'delivery_cost_split', 'delivery_count', 'items', 'total_amount', 'created_at', 'updated_at'
+            'delivery_cost_split', 'delivery_count', 'items', 'total_amount',
+            'created_by', 'created_at', 'updated_at'
         ]
-        read_only_fields = ['id', 'seller', 'supplier', 'delivery_count', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'seller', 'supplier', 'delivery_count', 'created_by', 'created_at', 'updated_at']
     
     def get_driver_name(self, obj):
         if obj.driver:
@@ -291,9 +292,9 @@ class DeliverySerializer(serializers.ModelSerializer):
             'driver_phone', 'driver_vehicle_type', 'driver_vehicle_plate', 'driver_license_number',
             'status', 'status_display',
             'total_amount', 'delivery_address', 'delivery_note',
-            'items', 'created_at', 'updated_at'
+            'created_by', 'items', 'created_at', 'updated_at'
         ]
-        read_only_fields = ['id', 'deal', 'total_amount', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'deal', 'total_amount', 'created_by', 'created_at', 'updated_at']
     
     def get_seller_name(self, obj):
         seller = obj.seller_profile

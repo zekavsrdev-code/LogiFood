@@ -57,7 +57,7 @@ class DealViewSet(viewsets.ModelViewSet):
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        deal = serializer.save()
+        deal = serializer.save(created_by=request.user)
         response_serializer = DealSerializer(deal)
         return success_response(
             data=response_serializer.data,
