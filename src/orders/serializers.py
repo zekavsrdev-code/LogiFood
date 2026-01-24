@@ -36,6 +36,7 @@ class DealSerializer(serializers.ModelSerializer):
     supplier_name = serializers.CharField(source='supplier.company_name', read_only=True)
     driver_name = serializers.SerializerMethodField()
     status_display = serializers.CharField(source='get_status_display', read_only=True)
+    delivery_handler_display = serializers.CharField(source='get_delivery_handler_display', read_only=True)
     total_amount = serializers.SerializerMethodField()
     seller_detail = SellerProfileSerializer(source='seller', read_only=True)
     supplier_detail = SupplierProfileSerializer(source='supplier', read_only=True)
@@ -48,8 +49,8 @@ class DealSerializer(serializers.ModelSerializer):
             'supplier', 'supplier_name', 'supplier_detail',
             'driver', 'driver_name', 'driver_detail',
             'status', 'status_display',
-            'delivery_address', 'delivery_note', 'cost_split',
-            'delivery_count', 'items', 'total_amount', 'created_at', 'updated_at'
+            'delivery_handler', 'delivery_handler_display',
+            'cost_split', 'delivery_count', 'items', 'total_amount', 'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'seller', 'supplier', 'delivery_count', 'created_at', 'updated_at']
     
@@ -71,9 +72,12 @@ class DealCreateSerializer(serializers.Serializer):
     """Deal Creation Serializer - For sellers or suppliers"""
     supplier_id = serializers.IntegerField(required=False)
     seller_id = serializers.IntegerField(required=False)
-    delivery_address = serializers.CharField()
-    delivery_note = serializers.CharField(required=False, allow_blank=True)
     driver_id = serializers.IntegerField(required=False, allow_null=True)
+    delivery_handler = serializers.ChoiceField(
+        choices=Deal.DeliveryHandler.choices,
+        default=Deal.DeliveryHandler.SYSTEM_DRIVER,
+        help_text='Who will handle the delivery: SYSTEM_DRIVER, SUPPLIER (3rd party), or SELLER (3rd party)'
+    )
     cost_split = serializers.BooleanField(default=False)
     items = serializers.ListField(
         child=serializers.DictField(
@@ -146,14 +150,30 @@ class DealCreateSerializer(serializers.Serializer):
         
         # Create deal
         driver_id = validated_data.get('driver_id')
+        delivery_handler = validated_data.get('delivery_handler', Deal.DeliveryHandler.SYSTEM_DRIVER)
+        
+        # Validate delivery_handler based on user role
+        if user.is_seller and delivery_handler == Deal.DeliveryHandler.SUPPLIER:
+            raise serializers.ValidationError({"delivery_handler": "Seller cannot set delivery handler to SUPPLIER."})
+        if user.is_supplier and delivery_handler == Deal.DeliveryHandler.SELLER:
+            raise serializers.ValidationError({"delivery_handler": "Supplier cannot set delivery handler to SELLER."})
+        
+        # If delivery_handler is SYSTEM_DRIVER but no driver_id provided, set status to LOOKING_FOR_DRIVER
+        # If delivery_handler is SUPPLIER or SELLER, driver_id should be None
+        if delivery_handler == Deal.DeliveryHandler.SYSTEM_DRIVER:
+            status = Deal.Status.DEALING if driver_id else Deal.Status.LOOKING_FOR_DRIVER
+        else:
+            # For 3rd party deliveries, driver_id should be None
+            driver_id = None
+            status = Deal.Status.DEALING
+        
         deal = Deal.objects.create(
             seller=seller_profile,
             supplier=supplier,
-            delivery_address=validated_data['delivery_address'],
-            delivery_note=validated_data.get('delivery_note', ''),
-            driver_id=driver_id if driver_id else None,
+            driver_id=driver_id,
+            delivery_handler=delivery_handler,
             cost_split=validated_data.get('cost_split', False),
-            status=Deal.Status.DEALING if driver_id else Deal.Status.LOOKING_FOR_DRIVER
+            status=status
         )
         
         # Create deal items
@@ -200,7 +220,15 @@ class DealDriverRequestSerializer(serializers.Serializer):
 
 class DealCompleteSerializer(serializers.Serializer):
     """Deal Completion Serializer - Creates Delivery from Deal when status is DONE"""
-    pass
+    delivery_address = serializers.CharField(required=True, help_text='Delivery address for the delivery')
+    delivery_note = serializers.CharField(required=False, allow_blank=True, help_text='Optional delivery note')
+    supplier_share = serializers.IntegerField(
+        required=False,
+        default=100,
+        min_value=0,
+        max_value=100,
+        help_text='Percentage of delivery owned by supplier (0-100). Default: 100'
+    )
 
 
 # ==================== DELIVERY SERIALIZERS ====================
@@ -239,7 +267,7 @@ class DeliverySerializer(serializers.ModelSerializer):
     driver_info = serializers.SerializerMethodField()
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     deal_detail = DealSummarySerializer(source='deal', read_only=True)
-    is_standalone = serializers.BooleanField(read_only=True)
+    is_3rd_party_delivery = serializers.BooleanField(read_only=True)
     
     class Meta:
         model = Delivery
@@ -247,7 +275,7 @@ class DeliverySerializer(serializers.ModelSerializer):
             'id', 'deal', 'deal_detail',
             'seller_name', 'seller_detail',
             'supplier_name', 'supplier_detail',
-            'supplier_share', 'is_standalone',
+            'supplier_share', 'is_3rd_party_delivery',
             'driver_profile', 'driver_name', 'driver_info',
             'driver_phone', 'driver_vehicle_type', 'driver_vehicle_plate', 'driver_license_number',
             'status', 'status_display',

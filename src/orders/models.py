@@ -13,6 +13,11 @@ class Deal(TimeStampedModel):
         DONE = 'DONE', 'Done'
         CANCELLED = 'CANCELLED', 'Cancelled'
     
+    class DeliveryHandler(models.TextChoices):
+        SYSTEM_DRIVER = 'SYSTEM_DRIVER', 'System Driver'
+        SUPPLIER = 'SUPPLIER', 'Supplier (3rd Party)'
+        SELLER = 'SELLER', 'Seller (3rd Party)'
+    
     seller = models.ForeignKey(
         SellerProfile,
         on_delete=models.CASCADE,
@@ -31,7 +36,8 @@ class Deal(TimeStampedModel):
         null=True,
         blank=True,
         related_name='deals',
-        verbose_name='Driver'
+        verbose_name='Driver',
+        help_text='System driver assigned to this deal (only used when delivery_handler is SYSTEM_DRIVER)'
     )
     status = models.CharField(
         max_length=30,
@@ -39,8 +45,13 @@ class Deal(TimeStampedModel):
         default=Status.DEALING,
         verbose_name='Status'
     )
-    delivery_address = models.TextField(verbose_name='Delivery Address')
-    delivery_note = models.TextField(blank=True, null=True, verbose_name='Delivery Note')
+    delivery_handler = models.CharField(
+        max_length=20,
+        choices=DeliveryHandler.choices,
+        default=DeliveryHandler.SYSTEM_DRIVER,
+        verbose_name='Delivery Handler',
+        help_text='Who will handle the delivery: System driver, Supplier (3rd party), or Seller (3rd party)'
+    )
     cost_split = models.BooleanField(
         default=False,
         verbose_name='Cost Split',
@@ -111,41 +122,20 @@ class Delivery(TimeStampedModel):
     
     deal = models.ForeignKey(
         Deal,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
+        on_delete=models.CASCADE,
         related_name='deliveries',
         verbose_name='Deal',
-        help_text='The deal this delivery was created from (if any). If null, this is a standalone delivery.'
+        help_text='The deal this delivery was created from. Delivery is always linked to a deal.'
     )
-    # For standalone deliveries (when deal is null), one of these must be set
-    supplier = models.ForeignKey(
-        SupplierProfile,
-        on_delete=models.CASCADE,
-        null=True,
-        blank=True,
-        related_name='standalone_deliveries',
-        verbose_name='Supplier',
-        help_text='Supplier for standalone deliveries (required if deal is null)'
-    )
-    seller = models.ForeignKey(
-        SellerProfile,
-        on_delete=models.CASCADE,
-        null=True,
-        blank=True,
-        related_name='standalone_deliveries',
-        verbose_name='Seller',
-        help_text='Seller for standalone deliveries (required if deal is null)'
-    )
-    # For deliveries from deals, supplier_share indicates percentage owned by supplier (0-100)
+    # Supplier share indicates percentage owned by supplier (0-100)
     # Remaining percentage (100 - supplier_share) belongs to seller
     supplier_share = models.PositiveIntegerField(
         default=100,
         verbose_name='Supplier Share (%)',
-        help_text='Percentage of delivery owned by supplier (0-100). Only used when delivery is from a deal.'
+        help_text='Percentage of delivery owned by supplier (0-100). Remaining percentage belongs to seller.'
     )
-    # Driver information - can be from system (DriverProfile) or external (manual entry)
-    # If driver is handled by supplier or seller, all driver fields can be null
+    # Driver information - can be from system (DriverProfile) or external (3rd party manual entry)
+    # If driver is handled by supplier or seller as 3rd party, driver_profile is null but manual fields are filled
     driver_profile = models.ForeignKey(
         'users.DriverProfile', 
         on_delete=models.SET_NULL, 
@@ -153,15 +143,15 @@ class Delivery(TimeStampedModel):
         blank=True,
         related_name='deliveries',
         verbose_name='Driver Profile',
-        help_text='System driver profile if driver is registered in system'
+        help_text='System driver profile if driver is registered in system. If null, use manual driver fields for 3rd party drivers.'
     )
-    # External/manual driver information (when driver_profile is null)
+    # External/3rd party driver information (when driver_profile is null and supplier/seller handles delivery)
     driver_name = models.CharField(
         max_length=255,
         blank=True,
         null=True,
         verbose_name='Driver Name',
-        help_text='Driver name (required if driver_profile is null and delivery has a driver)'
+        help_text='Driver name for 3rd party drivers (when driver_profile is null)'
     )
     driver_phone = models.CharField(
         max_length=20,
@@ -203,52 +193,46 @@ class Delivery(TimeStampedModel):
         ordering = ['-created_at']
     
     def __str__(self):
-        if self.deal:
-            seller_name = self.deal.seller.business_name
-        elif self.seller:
-            seller_name = self.seller.business_name
-        else:
-            seller_name = "Unknown"
+        seller_name = self.deal.seller.business_name
         return f"Delivery #{self.id} - {seller_name}"
     
     @property
     def seller_profile(self):
-        """Get seller profile - from deal or standalone"""
-        if self.deal:
-            return self.deal.seller
-        return self.seller
+        """Get seller profile from deal"""
+        return self.deal.seller
     
     @property
     def supplier_profile(self):
-        """Get supplier profile - from deal or standalone"""
-        if self.deal:
-            return self.deal.supplier
-        return self.supplier
+        """Get supplier profile from deal"""
+        return self.deal.supplier
     
     @property
-    def is_standalone(self):
-        """Check if this is a standalone delivery (not from a deal)"""
-        return self.deal is None
+    def is_3rd_party_delivery(self):
+        """Check if this delivery is handled by 3rd party (supplier or seller handles delivery, not system driver)"""
+        # If driver_profile is null but driver_name is set, it's a 3rd party delivery
+        # Or if both are null, supplier/seller handles it themselves
+        return self.driver_profile is None
     
     def clean(self):
         """Validate delivery model"""
         from django.core.exceptions import ValidationError
         
-        # If standalone, either supplier or seller must be set
-        if self.deal is None:
-            if not self.supplier and not self.seller:
-                raise ValidationError("Standalone delivery must have either supplier or seller.")
-            if self.supplier and self.seller:
-                raise ValidationError("Standalone delivery cannot have both supplier and seller. Choose one.")
-        
-        # If from deal, supplier and seller should not be set directly
-        if self.deal is not None:
-            if self.supplier or self.seller:
-                raise ValidationError("Delivery from deal should not have supplier or seller set directly. Use deal relationship.")
+        # Deal is always required
+        if not hasattr(self, 'deal_id') or self.deal_id is None:
+            raise ValidationError("Delivery must be linked to a deal.")
         
         # Validate supplier_share
         if self.supplier_share > 100:
             raise ValidationError("Supplier share cannot exceed 100%.")
+        
+        # Delivery address is required
+        if not self.delivery_address:
+            raise ValidationError("Delivery address is required.")
+        
+        # If driver_profile is set, manual driver fields should be empty (use system driver)
+        if self.driver_profile:
+            if self.driver_name or self.driver_phone or self.driver_vehicle_type or self.driver_vehicle_plate or self.driver_license_number:
+                raise ValidationError("Cannot use both system driver (driver_profile) and manual driver fields. Use one or the other.")
     
     def save(self, *args, **kwargs):
         """Override save to validate and update deal delivery count"""

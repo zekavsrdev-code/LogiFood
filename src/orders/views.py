@@ -209,8 +209,8 @@ class DealViewSet(viewsets.ModelViewSet):
                 status_code=status.HTTP_400_BAD_REQUEST
             )
         
-        # Check if delivery already exists
-        if deal.delivery:
+        # Check if delivery already exists (check delivery_count)
+        if deal.delivery_count > 0:
             return error_response(
                 message='Delivery already created for this deal',
                 status_code=status.HTTP_400_BAD_REQUEST
@@ -235,8 +235,22 @@ class DealViewSet(viewsets.ModelViewSet):
                 status_code=status.HTTP_403_FORBIDDEN
             )
         
+        # Validate serializer to get delivery_address and delivery_note
+        serializer = DealCompleteSerializer(data=request.data)
+        if not serializer.is_valid():
+            return error_response(
+                message='Invalid data',
+                errors=serializer.errors,
+                status_code=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Get validated data
+        delivery_address = serializer.validated_data['delivery_address']
+        delivery_note = serializer.validated_data.get('delivery_note', '')
+        supplier_share = serializer.validated_data.get('supplier_share', 100)
+        
         # Create delivery from deal
-        # Get driver information from deal
+        # Get driver information based on delivery_handler
         driver_profile = None
         driver_name = None
         driver_phone = None
@@ -244,26 +258,30 @@ class DealViewSet(viewsets.ModelViewSet):
         driver_vehicle_plate = None
         driver_license_number = None
         
-        if deal.driver:
-            driver_profile = deal.driver
-            driver_name = deal.driver.user.get_full_name() or deal.driver.user.username
-            driver_phone = deal.driver.user.phone_number
-            driver_vehicle_type = deal.driver.vehicle_type
-            driver_vehicle_plate = deal.driver.vehicle_plate
-            driver_license_number = deal.driver.license_number
+        if deal.delivery_handler == Deal.DeliveryHandler.SYSTEM_DRIVER:
+            # Use system driver from deal - only set driver_profile, not manual fields
+            if deal.driver:
+                driver_profile = deal.driver
+                # Manual driver fields should be None when using system driver
+                driver_name = None
+                driver_phone = None
+                driver_vehicle_type = None
+                driver_vehicle_plate = None
+                driver_license_number = None
+        # For SUPPLIER or SELLER (3rd party), all driver fields remain None
+        # The supplier/seller will handle delivery themselves or provide driver info later
         
-        # Default supplier_share is 100 (all to supplier), can be adjusted later
         delivery = Delivery.objects.create(
             deal=deal,
-            supplier_share=100,  # Default: all to supplier, can be adjusted
+            supplier_share=supplier_share,
             driver_profile=driver_profile,
             driver_name=driver_name,
             driver_phone=driver_phone,
             driver_vehicle_type=driver_vehicle_type,
             driver_vehicle_plate=driver_vehicle_plate,
             driver_license_number=driver_license_number,
-            delivery_address=deal.delivery_address,
-            delivery_note=deal.delivery_note,
+            delivery_address=delivery_address,
+            delivery_note=delivery_note,
             status=Delivery.Status.CONFIRMED
         )
         
@@ -389,12 +407,12 @@ class DeliveryViewSet(viewsets.ModelViewSet):
         if serializer.is_valid():
             driver_profile = DriverProfile.objects.get(id=serializer.validated_data['driver_id'])
             delivery.driver_profile = driver_profile
-            # Populate driver info from profile
-            delivery.driver_name = driver_profile.user.get_full_name() or driver_profile.user.username
-            delivery.driver_phone = driver_profile.user.phone_number
-            delivery.driver_vehicle_type = driver_profile.vehicle_type
-            delivery.driver_vehicle_plate = driver_profile.vehicle_plate
-            delivery.driver_license_number = driver_profile.license_number
+            # Manual fields should be None when using system driver
+            delivery.driver_name = None
+            delivery.driver_phone = None
+            delivery.driver_vehicle_type = None
+            delivery.driver_vehicle_plate = None
+            delivery.driver_license_number = None
             delivery.status = Delivery.Status.READY
             delivery.save()
             return success_response(
@@ -530,14 +548,13 @@ class AcceptDeliveryView(generics.UpdateAPIView):
     
     def update(self, request, *args, **kwargs):
         delivery = self.get_object()
-        driver_profile = request.user.driver_profile
-        delivery.driver_profile = driver_profile
-        # Populate driver info from profile
-        delivery.driver_name = driver_profile.user.get_full_name() or driver_profile.user.username
-        delivery.driver_phone = driver_profile.user.phone_number
-        delivery.driver_vehicle_type = driver_profile.vehicle_type
-        delivery.driver_vehicle_plate = driver_profile.vehicle_plate
-        delivery.driver_license_number = driver_profile.license_number
+        delivery.driver_profile = request.user.driver_profile
+        # Manual fields should be None when using system driver
+        delivery.driver_name = None
+        delivery.driver_phone = None
+        delivery.driver_vehicle_type = None
+        delivery.driver_vehicle_plate = None
+        delivery.driver_license_number = None
         delivery.status = Delivery.Status.PICKED_UP
         delivery.save()
         

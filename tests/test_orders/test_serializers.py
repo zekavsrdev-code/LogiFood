@@ -31,8 +31,7 @@ class TestDeliverySerializer:
         assert 'items' in data
         assert 'total_amount' in data
         assert 'supplier_share' in data
-        assert 'is_standalone' in data
-        assert data['is_standalone'] is False  # Delivery from deal
+        assert 'is_3rd_party_delivery' in data
         assert data['supplier_share'] == 100
     
     def test_delivery_serializer_with_items(self, delivery, delivery_item):
@@ -42,12 +41,21 @@ class TestDeliverySerializer:
         assert len(data['items']) == 1
         assert data['items'][0]['product_name'] == delivery_item.product.name
     
-    def test_delivery_serializer_standalone(self, standalone_delivery):
-        """Test standalone delivery serialization"""
-        serializer = DeliverySerializer(standalone_delivery)
+    def test_delivery_serializer_3rd_party(self, deal):
+        """Test 3rd party delivery serialization (no driver_profile)"""
+        from src.orders.models import Delivery
+        delivery = Delivery.objects.create(
+            deal=deal,
+            delivery_address='Test Address',
+            status=Delivery.Status.CONFIRMED,
+            driver_profile=None,  # 3rd party delivery
+            driver_name=None,
+            driver_phone=None
+        )
+        serializer = DeliverySerializer(delivery)
         data = serializer.data
-        assert data['is_standalone'] is True
-        assert data['deal'] is None
+        assert data['is_3rd_party_delivery'] is True
+        assert data['deal'] is not None
         assert 'seller_name' in data
 
 

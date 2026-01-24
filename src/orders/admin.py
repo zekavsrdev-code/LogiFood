@@ -10,8 +10,8 @@ class DealItemInline(admin.TabularInline):
 
 @admin.register(Deal)
 class DealAdmin(admin.ModelAdmin):
-    list_display = ['id', 'seller', 'supplier', 'driver', 'status', 'cost_split', 'delivery_count', 'created_at']
-    list_filter = ['status', 'cost_split', 'created_at']
+    list_display = ['id', 'seller', 'supplier', 'driver', 'delivery_handler', 'status', 'cost_split', 'delivery_count', 'created_at']
+    list_filter = ['status', 'delivery_handler', 'cost_split', 'created_at']
     search_fields = ['seller__business_name', 'supplier__company_name']
     inlines = [DealItemInline]
     ordering = ['-created_at']
@@ -33,7 +33,7 @@ class DeliveryItemInline(admin.TabularInline):
 
 @admin.register(Delivery)
 class DeliveryAdmin(admin.ModelAdmin):
-    list_display = ['id', 'deal', 'get_seller', 'get_supplier', 'get_supplier_share', 'get_is_standalone', 'driver_profile', 'driver_name', 'status', 'total_amount', 'created_at']
+    list_display = ['id', 'deal', 'get_seller', 'get_supplier', 'get_supplier_share', 'get_is_3rd_party', 'driver_profile', 'driver_name', 'status', 'total_amount', 'created_at']
     list_filter = ['status', 'created_at']
     search_fields = ['deal__seller__business_name', 'deal__supplier__company_name', 'seller__business_name', 'supplier__company_name', 'driver_name']
     readonly_fields = ['total_amount', 'created_at', 'updated_at']
@@ -51,13 +51,13 @@ class DeliveryAdmin(admin.ModelAdmin):
     get_supplier.short_description = 'Supplier'
     
     def get_supplier_share(self, obj):
-        return f"{obj.supplier_share}%" if obj.deal else "N/A"
+        return f"{obj.supplier_share}%"
     get_supplier_share.short_description = 'Supplier Share'
     
-    def get_is_standalone(self, obj):
-        return obj.is_standalone
-    get_is_standalone.boolean = True
-    get_is_standalone.short_description = 'Standalone'
+    def get_is_3rd_party(self, obj):
+        return obj.is_3rd_party_delivery
+    get_is_3rd_party.boolean = True
+    get_is_3rd_party.short_description = '3rd Party Delivery'
 
 
 @admin.register(DeliveryItem)

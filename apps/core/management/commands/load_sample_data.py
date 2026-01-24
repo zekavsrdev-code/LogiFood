@@ -407,8 +407,6 @@ class Command(BaseCommand):
                 'supplier': created_suppliers[0],
                 'driver': created_drivers[0],
                 'status': Deal.Status.DEALING,
-                'delivery_address': 'Bağdat Cad. No:200, Kadıköy, Istanbul',
-                'delivery_note': 'Please deliver in the morning',
                 'cost_split': False,
                 'items': [
                     {'product': created_products[0], 'quantity': 50},  # Oranges
@@ -420,8 +418,6 @@ class Command(BaseCommand):
                 'supplier': created_suppliers[1],
                 'driver': None,
                 'status': Deal.Status.LOOKING_FOR_DRIVER,
-                'delivery_address': 'Kızılay Meydanı No:15, Çankaya, Ankara',
-                'delivery_note': 'Urgent delivery needed',
                 'cost_split': True,
                 'items': [
                     {'product': created_products[3], 'quantity': 10},  # Beef
@@ -433,8 +429,6 @@ class Command(BaseCommand):
                 'supplier': created_suppliers[2],
                 'driver': created_drivers[2],
                 'status': Deal.Status.DONE,
-                'delivery_address': 'Alsancak Cad. No:30, Konak, Izmir',
-                'delivery_note': 'Regular delivery',
                 'cost_split': False,
                 'items': [
                     {'product': created_products[5], 'quantity': 50},  # Milk
@@ -481,17 +475,39 @@ class Command(BaseCommand):
                 driver_vehicle_plate = done_deal.driver.vehicle_plate
                 driver_license_number = done_deal.driver.license_number
             
+            # Get delivery address and note from deal data (stored separately for sample data)
+            delivery_address = 'Alsancak Cad. No:30, Konak, Izmir'  # From deal data
+            delivery_note = 'Regular delivery'  # From deal data
+            
+            # Set driver information based on delivery_handler
+            if done_deal.delivery_handler == Deal.DeliveryHandler.SYSTEM_DRIVER:
+                # Use system driver - only set driver_profile, not manual fields
+                final_driver_profile = driver_profile
+                final_driver_name = None
+                final_driver_phone = None
+                final_driver_vehicle_type = None
+                final_driver_vehicle_plate = None
+                final_driver_license_number = None
+            else:
+                # For 3rd party deliveries, all driver fields are None
+                final_driver_profile = None
+                final_driver_name = None
+                final_driver_phone = None
+                final_driver_vehicle_type = None
+                final_driver_vehicle_plate = None
+                final_driver_license_number = None
+            
             delivery = Delivery.objects.create(
                 deal=done_deal,
                 supplier_share=100,  # Default: all to supplier
-                driver_profile=driver_profile,
-                driver_name=driver_name,
-                driver_phone=driver_phone,
-                driver_vehicle_type=driver_vehicle_type,
-                driver_vehicle_plate=driver_vehicle_plate,
-                driver_license_number=driver_license_number,
-                delivery_address=done_deal.delivery_address,
-                delivery_note=done_deal.delivery_note,
+                driver_profile=final_driver_profile,
+                driver_name=final_driver_name,
+                driver_phone=final_driver_phone,
+                driver_vehicle_type=final_driver_vehicle_type,
+                driver_vehicle_plate=final_driver_vehicle_plate,
+                driver_license_number=final_driver_license_number,
+                delivery_address=delivery_address,
+                delivery_note=delivery_note,
                 status=Delivery.Status.CONFIRMED
             )
             

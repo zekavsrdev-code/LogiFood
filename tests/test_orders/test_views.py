@@ -90,11 +90,12 @@ class TestDeliveryViews:
     def test_update_delivery_status_as_driver(self, driver_client, delivery, driver_user):
         """Test updating delivery status as driver"""
         delivery.driver_profile = driver_user.driver_profile
-        delivery.driver_name = driver_user.driver_profile.user.username
-        delivery.driver_phone = driver_user.driver_profile.user.phone_number
-        delivery.driver_vehicle_type = driver_user.driver_profile.vehicle_type
-        delivery.driver_vehicle_plate = driver_user.driver_profile.vehicle_plate
-        delivery.driver_license_number = driver_user.driver_profile.license_number
+        # Manual fields should be None when using system driver
+        delivery.driver_name = None
+        delivery.driver_phone = None
+        delivery.driver_vehicle_type = None
+        delivery.driver_vehicle_plate = None
+        delivery.driver_license_number = None
         delivery.status = Delivery.Status.PICKED_UP
         delivery.save()
         
@@ -208,7 +209,8 @@ class TestDiscoveryViews:
         assert response.data['success'] is True
         delivery.refresh_from_db()
         assert delivery.driver_profile is not None
-        assert delivery.driver_name is not None
+        # When system driver is assigned, manual fields should be None
+        assert delivery.driver_name is None
         assert delivery.status == Delivery.Status.PICKED_UP
     
     def test_accept_delivery_not_driver(self, seller_client, delivery):
@@ -219,11 +221,12 @@ class TestDiscoveryViews:
     def test_accept_delivery_already_assigned(self, driver_client, delivery, driver_user):
         """Test accepting an already assigned delivery"""
         delivery.driver_profile = driver_user.driver_profile
-        delivery.driver_name = driver_user.driver_profile.user.username
-        delivery.driver_phone = driver_user.driver_profile.user.phone_number
-        delivery.driver_vehicle_type = driver_user.driver_profile.vehicle_type
-        delivery.driver_vehicle_plate = driver_user.driver_profile.vehicle_plate
-        delivery.driver_license_number = driver_user.driver_profile.license_number
+        # Manual fields should be None when using system driver
+        delivery.driver_name = None
+        delivery.driver_phone = None
+        delivery.driver_vehicle_type = None
+        delivery.driver_vehicle_plate = None
+        delivery.driver_license_number = None
         delivery.status = Delivery.Status.PICKED_UP
         delivery.save()
         
