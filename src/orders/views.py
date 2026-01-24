@@ -4,12 +4,18 @@ from rest_framework.permissions import IsAuthenticated
 from django.db.models import Q
 from django_filters.rest_framework import DjangoFilterBackend
 
-from .models import Order
+from .models import Deal, Delivery, DeliveryItem
 from .serializers import (
-    OrderSerializer,
-    OrderCreateSerializer,
-    OrderStatusUpdateSerializer,
-    OrderAssignDriverSerializer,
+    DealSerializer,
+    DealCreateSerializer,
+    DealStatusUpdateSerializer,
+    DealDriverAssignSerializer,
+    DealDriverRequestSerializer,
+    DealCompleteSerializer,
+    DeliverySerializer,
+    DeliveryCreateSerializer,
+    DeliveryStatusUpdateSerializer,
+    DeliveryAssignDriverSerializer,
 )
 from src.users.models import SupplierProfile, DriverProfile
 from apps.core.utils import success_response, error_response
@@ -17,11 +23,257 @@ from apps.core.permissions import IsSupplier, IsSeller, IsDriver
 from apps.core.pagination import StandardResultsSetPagination
 
 
-# ==================== ORDER VIEWS ====================
+# ==================== DEAL VIEWS ====================
 
-class OrderViewSet(viewsets.ModelViewSet):
-    """Order ViewSet - Filtering by role"""
-    serializer_class = OrderSerializer
+class DealViewSet(viewsets.ModelViewSet):
+    """Deal ViewSet - Manages deals before deliveries"""
+    serializer_class = DealSerializer
+    permission_classes = [IsAuthenticated]
+    pagination_class = StandardResultsSetPagination
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
+    filterset_fields = ['status']
+    ordering_fields = ['created_at']
+    ordering = ['-created_at']
+    
+    def get_queryset(self):
+        user = self.request.user
+        
+        if user.is_supplier:
+            return Deal.objects.filter(supplier=user.supplier_profile).select_related('seller', 'supplier', 'driver')
+        elif user.is_seller:
+            return Deal.objects.filter(seller=user.seller_profile).select_related('seller', 'supplier', 'driver')
+        else:
+            return Deal.objects.none()
+    
+    def get_serializer_class(self):
+        if self.action == 'create':
+            return DealCreateSerializer
+        return DealSerializer
+    
+    def list(self, request, *args, **kwargs):
+        response = super().list(request, *args, **kwargs)
+        return success_response(data=response.data, message='Deals listed successfully')
+    
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        deal = serializer.save()
+        response_serializer = DealSerializer(deal)
+        return success_response(
+            data=response_serializer.data,
+            message='Deal created successfully',
+            status_code=status.HTTP_201_CREATED
+        )
+    
+    def retrieve(self, request, *args, **kwargs):
+        response = super().retrieve(request, *args, **kwargs)
+        return success_response(data=response.data, message='Deal detail')
+    
+    @action(detail=True, methods=['put'], permission_classes=[IsAuthenticated])
+    def update_status(self, request, pk=None):
+        """Update deal status"""
+        deal = self.get_object()
+        user = request.user
+        
+        # Permission check - only seller or supplier can update
+        if not (user.is_supplier or user.is_seller):
+            return error_response(
+                message='Unauthorized access',
+                status_code=status.HTTP_403_FORBIDDEN
+            )
+        
+        # Check if user is part of this deal
+        if user.is_supplier and deal.supplier != user.supplier_profile:
+            return error_response(
+                message='This deal does not belong to you',
+                status_code=status.HTTP_403_FORBIDDEN
+            )
+        if user.is_seller and deal.seller != user.seller_profile:
+            return error_response(
+                message='This deal does not belong to you',
+                status_code=status.HTTP_403_FORBIDDEN
+            )
+        
+        serializer = DealStatusUpdateSerializer(data=request.data)
+        if serializer.is_valid():
+            deal.status = serializer.validated_data['status']
+            deal.save()
+            return success_response(
+                data=DealSerializer(deal).data,
+                message='Deal status updated successfully'
+            )
+        return error_response(message='Update failed', errors=serializer.errors)
+    
+    @action(detail=True, methods=['put'], permission_classes=[IsAuthenticated])
+    def assign_driver(self, request, pk=None):
+        """Assign own driver to deal - Supplier or Seller can assign their own driver"""
+        deal = self.get_object()
+        user = request.user
+        
+        # Permission check
+        if not (user.is_supplier or user.is_seller):
+            return error_response(
+                message='Unauthorized access',
+                status_code=status.HTTP_403_FORBIDDEN
+            )
+        
+        # Check if user is part of this deal
+        if user.is_supplier and deal.supplier != user.supplier_profile:
+            return error_response(
+                message='This deal does not belong to you',
+                status_code=status.HTTP_403_FORBIDDEN
+            )
+        if user.is_seller and deal.seller != user.seller_profile:
+            return error_response(
+                message='This deal does not belong to you',
+                status_code=status.HTTP_403_FORBIDDEN
+            )
+        
+        serializer = DealDriverAssignSerializer(data=request.data)
+        if serializer.is_valid():
+            driver = DriverProfile.objects.get(id=serializer.validated_data['driver_id'])
+            deal.driver = driver
+            # If driver is assigned, status changes to DEALING
+            if deal.status == Deal.Status.LOOKING_FOR_DRIVER:
+                deal.status = Deal.Status.DEALING
+            deal.save()
+            return success_response(
+                data=DealSerializer(deal).data,
+                message='Driver assigned successfully'
+            )
+        return error_response(message='Driver assignment failed', errors=serializer.errors)
+    
+    @action(detail=True, methods=['put'], permission_classes=[IsAuthenticated])
+    def request_driver(self, request, pk=None):
+        """Request driver for deal - Only when status is LOOKING_FOR_DRIVER"""
+        deal = self.get_object()
+        user = request.user
+        
+        # Status check
+        if deal.status != Deal.Status.LOOKING_FOR_DRIVER:
+            return error_response(
+                message='Driver requests can only be made when deal status is LOOKING_FOR_DRIVER',
+                status_code=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Permission check
+        if not (user.is_supplier or user.is_seller):
+            return error_response(
+                message='Unauthorized access',
+                status_code=status.HTTP_403_FORBIDDEN
+            )
+        
+        # Check if user is part of this deal
+        if user.is_supplier and deal.supplier != user.supplier_profile:
+            return error_response(
+                message='This deal does not belong to you',
+                status_code=status.HTTP_403_FORBIDDEN
+            )
+        if user.is_seller and deal.seller != user.seller_profile:
+            return error_response(
+                message='This deal does not belong to you',
+                status_code=status.HTTP_403_FORBIDDEN
+            )
+        
+        # If cost_split is False, only one party can request
+        if not deal.cost_split:
+            # If driver is already assigned, cannot request another
+            if deal.driver:
+                return error_response(
+                    message='Driver is already assigned to this deal',
+                    status_code=status.HTTP_400_BAD_REQUEST
+                )
+        
+        serializer = DealDriverRequestSerializer(data=request.data)
+        if serializer.is_valid():
+            driver = DriverProfile.objects.get(id=serializer.validated_data['driver_id'])
+            deal.driver = driver
+            deal.status = Deal.Status.DEALING
+            deal.save()
+            return success_response(
+                data=DealSerializer(deal).data,
+                message='Driver request sent successfully'
+            )
+        return error_response(message='Driver request failed', errors=serializer.errors)
+    
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
+    def complete(self, request, pk=None):
+        """Complete deal and create order - Only when status is DONE"""
+        deal = self.get_object()
+        user = request.user
+        
+        # Status check
+        if deal.status != Deal.Status.DONE:
+            return error_response(
+                message='Deal can only be completed when status is DONE',
+                status_code=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Check if delivery already exists
+        if deal.delivery:
+            return error_response(
+                message='Delivery already created for this deal',
+                status_code=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Permission check - only seller or supplier can complete
+        if not (user.is_supplier or user.is_seller):
+            return error_response(
+                message='Unauthorized access',
+                status_code=status.HTTP_403_FORBIDDEN
+            )
+        
+        # Check if user is part of this deal
+        if user.is_supplier and deal.supplier != user.supplier_profile:
+            return error_response(
+                message='This deal does not belong to you',
+                status_code=status.HTTP_403_FORBIDDEN
+            )
+        if user.is_seller and deal.seller != user.seller_profile:
+            return error_response(
+                message='This deal does not belong to you',
+                status_code=status.HTTP_403_FORBIDDEN
+            )
+        
+        # Create delivery from deal
+        delivery = Delivery.objects.create(
+            seller=deal.seller,
+            supplier=deal.supplier,
+            driver=deal.driver,
+            delivery_address=deal.delivery_address,
+            delivery_note=deal.delivery_note,
+            status=Delivery.Status.CONFIRMED
+        )
+        
+        # Create delivery items from deal items
+        for deal_item in deal.items.all():
+            DeliveryItem.objects.create(
+                delivery=delivery,
+                product=deal_item.product,
+                quantity=deal_item.quantity,
+                unit_price=deal_item.unit_price
+            )
+        
+        # Calculate total and link deal to delivery
+        delivery.calculate_total()
+        deal.delivery = delivery
+        deal.save()
+        
+        return success_response(
+            data={
+                'deal': DealSerializer(deal).data,
+                'delivery': DeliverySerializer(delivery).data
+            },
+            message='Deal completed and delivery created successfully',
+            status_code=status.HTTP_201_CREATED
+        )
+
+
+# ==================== DELIVERY VIEWS ====================
+
+class DeliveryViewSet(viewsets.ModelViewSet):
+    """Delivery ViewSet - Filtering by role"""
+    serializer_class = DeliverySerializer
     permission_classes = [IsAuthenticated]
     pagination_class = StandardResultsSetPagination
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
@@ -33,49 +285,49 @@ class OrderViewSet(viewsets.ModelViewSet):
         user = self.request.user
         
         if user.is_supplier:
-            return Order.objects.filter(supplier=user.supplier_profile).select_related('seller', 'supplier', 'driver')
+            return Delivery.objects.filter(supplier=user.supplier_profile).select_related('seller', 'supplier', 'driver')
         elif user.is_seller:
-            return Order.objects.filter(seller=user.seller_profile).select_related('seller', 'supplier', 'driver')
+            return Delivery.objects.filter(seller=user.seller_profile).select_related('seller', 'supplier', 'driver')
         elif user.is_driver:
-            return Order.objects.filter(driver=user.driver_profile).select_related('seller', 'supplier', 'driver')
+            return Delivery.objects.filter(driver=user.driver_profile).select_related('seller', 'supplier', 'driver')
         else:
-            return Order.objects.none()
+            return Delivery.objects.none()
     
     def get_serializer_class(self):
         if self.action == 'create':
-            return OrderCreateSerializer
-        return OrderSerializer
+            return DeliveryCreateSerializer
+        return DeliverySerializer
     
     def perform_create(self, serializer):
-        # Only Seller can create orders
+        # Only Seller can create deliveries
         if not self.request.user.is_seller:
             from rest_framework.exceptions import PermissionDenied
-            raise PermissionDenied('Only sellers can create orders')
+            raise PermissionDenied('Only sellers can create deliveries')
         serializer.save(seller=self.request.user.seller_profile)
     
     def list(self, request, *args, **kwargs):
         response = super().list(request, *args, **kwargs)
-        return success_response(data=response.data, message='Orders listed successfully')
+        return success_response(data=response.data, message='Deliveries listed successfully')
     
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        order = serializer.save()
-        response_serializer = OrderSerializer(order)
+        delivery = serializer.save()
+        response_serializer = DeliverySerializer(delivery)
         return success_response(
             data=response_serializer.data,
-            message='Order created successfully',
+            message='Delivery created successfully',
             status_code=status.HTTP_201_CREATED
         )
     
     def retrieve(self, request, *args, **kwargs):
         response = super().retrieve(request, *args, **kwargs)
-        return success_response(data=response.data, message='Order detail')
+        return success_response(data=response.data, message='Delivery detail')
     
     @action(detail=True, methods=['put'], permission_classes=[IsAuthenticated])
     def update_status(self, request, pk=None):
-        """Update order status - Supplier or Driver"""
-        order = self.get_object()
+        """Update delivery status - Supplier or Driver"""
+        delivery = self.get_object()
         user = request.user
         
         # Permission check
@@ -86,49 +338,49 @@ class OrderViewSet(viewsets.ModelViewSet):
             )
         
         # Supplier check
-        if user.is_supplier and order.supplier != user.supplier_profile:
+        if user.is_supplier and delivery.supplier != user.supplier_profile:
             return error_response(
-                message='This order does not belong to you',
+                message='This delivery does not belong to you',
                 status_code=status.HTTP_403_FORBIDDEN
             )
         
         # Driver check
-        if user.is_driver and order.driver != user.driver_profile:
+        if user.is_driver and delivery.driver != user.driver_profile:
             return error_response(
-                message='This order does not belong to you',
+                message='This delivery does not belong to you',
                 status_code=status.HTTP_403_FORBIDDEN
             )
         
-        serializer = OrderStatusUpdateSerializer(data=request.data)
+        serializer = DeliveryStatusUpdateSerializer(data=request.data)
         if serializer.is_valid():
-            order.status = serializer.validated_data['status']
-            order.save()
+            delivery.status = serializer.validated_data['status']
+            delivery.save()
             return success_response(
-                data=OrderSerializer(order).data,
-                message='Order status updated successfully'
+                data=DeliverySerializer(delivery).data,
+                message='Delivery status updated successfully'
             )
         return error_response(message='Update failed', errors=serializer.errors)
     
     @action(detail=True, methods=['put'], permission_classes=[IsAuthenticated, IsSupplier])
     def assign_driver(self, request, pk=None):
-        """Assign driver to order - Only supplier can do this"""
-        order = self.get_object()
+        """Assign driver to delivery - Only supplier can do this"""
+        delivery = self.get_object()
         
         # Supplier check
-        if order.supplier != request.user.supplier_profile:
+        if delivery.supplier != request.user.supplier_profile:
             return error_response(
-                message='This order does not belong to you',
+                message='This delivery does not belong to you',
                 status_code=status.HTTP_403_FORBIDDEN
             )
         
-        serializer = OrderAssignDriverSerializer(data=request.data)
+        serializer = DeliveryAssignDriverSerializer(data=request.data)
         if serializer.is_valid():
             driver = DriverProfile.objects.get(id=serializer.validated_data['driver_id'])
-            order.driver = driver
-            order.status = Order.Status.READY
-            order.save()
+            delivery.driver = driver
+            delivery.status = Delivery.Status.READY
+            delivery.save()
             return success_response(
-                data=OrderSerializer(order).data,
+                data=DeliverySerializer(delivery).data,
                 message='Driver assigned successfully'
             )
         return error_response(message='Driver assignment failed', errors=serializer.errors)
@@ -215,9 +467,9 @@ class DriverListView(generics.ListAPIView):
         return success_response(data=data, message='Drivers listed successfully')
 
 
-class AvailableOrderListView(generics.ListAPIView):
-    """Available orders for drivers"""
-    serializer_class = OrderSerializer
+class AvailableDeliveryListView(generics.ListAPIView):
+    """Available deliveries for drivers"""
+    serializer_class = DeliverySerializer
     permission_classes = [IsAuthenticated, IsDriver]
     pagination_class = StandardResultsSetPagination
     filter_backends = [filters.OrderingFilter]
@@ -225,45 +477,45 @@ class AvailableOrderListView(generics.ListAPIView):
     ordering = ['-created_at']
     
     def get_queryset(self):
-        # Orders without driver and ready status
-        orders = Order.objects.filter(
+        # Deliveries without driver and ready status
+        deliveries = Delivery.objects.filter(
             driver__isnull=True,
-            status=Order.Status.READY
+            status=Delivery.Status.READY
         ).select_related('seller', 'supplier')
         
         # City filter (based on driver's city)
         driver_city = self.request.user.driver_profile.city
         if driver_city:
-            orders = orders.filter(
+            deliveries = deliveries.filter(
                 Q(seller__city__icontains=driver_city) | Q(supplier__city__icontains=driver_city)
             )
         
-        return orders
+        return deliveries
     
     def list(self, request, *args, **kwargs):
         response = super().list(request, *args, **kwargs)
-        return success_response(data=response.data, message='Available orders listed successfully')
+        return success_response(data=response.data, message='Available deliveries listed successfully')
 
 
-class AcceptOrderView(generics.UpdateAPIView):
-    """Driver accepts order"""
-    serializer_class = OrderSerializer
+class AcceptDeliveryView(generics.UpdateAPIView):
+    """Driver accepts delivery"""
+    serializer_class = DeliverySerializer
     permission_classes = [IsAuthenticated, IsDriver]
     
     def get_queryset(self):
-        return Order.objects.filter(
+        return Delivery.objects.filter(
             driver__isnull=True,
-            status=Order.Status.READY
+            status=Delivery.Status.READY
         )
     
     def update(self, request, *args, **kwargs):
-        order = self.get_object()
-        order.driver = request.user.driver_profile
-        order.status = Order.Status.PICKED_UP
-        order.save()
+        delivery = self.get_object()
+        delivery.driver = request.user.driver_profile
+        delivery.status = Delivery.Status.PICKED_UP
+        delivery.save()
         
-        serializer = self.get_serializer(order)
+        serializer = self.get_serializer(delivery)
         return success_response(
             data=serializer.data,
-            message='Order accepted successfully'
+            message='Delivery accepted successfully'
         )

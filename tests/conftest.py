@@ -162,24 +162,24 @@ def product(supplier_user, category):
 
 
 @pytest.fixture
-def order(seller_user, supplier_user):
-    """Create a test order"""
-    from src.orders.models import Order
-    return Order.objects.create(
+def delivery(seller_user, supplier_user):
+    """Create a test delivery"""
+    from src.orders.models import Delivery
+    return Delivery.objects.create(
         seller=seller_user.seller_profile,
         supplier=supplier_user.supplier_profile,
         delivery_address='Test Address',
         delivery_note='Test note',
-        status=Order.Status.PENDING
+        status=Delivery.Status.CONFIRMED
     )
 
 
 @pytest.fixture
-def order_item(order, product):
-    """Create a test order item"""
-    from src.orders.models import OrderItem
-    return OrderItem.objects.create(
-        order=order,
+def delivery_item(delivery, product):
+    """Create a test delivery item"""
+    from src.orders.models import DeliveryItem
+    return DeliveryItem.objects.create(
+        delivery=delivery,
         product=product,
         quantity=5,
         unit_price=product.price
