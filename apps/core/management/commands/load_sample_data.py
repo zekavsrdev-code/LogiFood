@@ -464,11 +464,32 @@ class Command(BaseCommand):
 
         # Create delivery from the DONE deal
         done_deal = created_deals[2]  # The deal with status DONE
-        if done_deal.status == Deal.Status.DONE and not done_deal.delivery:
+        if done_deal.status == Deal.Status.DONE and done_deal.delivery_count == 0:
+            # Get driver information from deal
+            driver_profile = None
+            driver_name = None
+            driver_phone = None
+            driver_vehicle_type = None
+            driver_vehicle_plate = None
+            driver_license_number = None
+            
+            if done_deal.driver:
+                driver_profile = done_deal.driver
+                driver_name = done_deal.driver.user.get_full_name() or done_deal.driver.user.username
+                driver_phone = done_deal.driver.user.phone_number
+                driver_vehicle_type = done_deal.driver.vehicle_type
+                driver_vehicle_plate = done_deal.driver.vehicle_plate
+                driver_license_number = done_deal.driver.license_number
+            
             delivery = Delivery.objects.create(
-                seller=done_deal.seller,
-                supplier=done_deal.supplier,
-                driver=done_deal.driver,
+                deal=done_deal,
+                supplier_share=100,  # Default: all to supplier
+                driver_profile=driver_profile,
+                driver_name=driver_name,
+                driver_phone=driver_phone,
+                driver_vehicle_type=driver_vehicle_type,
+                driver_vehicle_plate=driver_vehicle_plate,
+                driver_license_number=driver_license_number,
                 delivery_address=done_deal.delivery_address,
                 delivery_note=done_deal.delivery_note,
                 status=Delivery.Status.CONFIRMED
@@ -483,32 +504,14 @@ class Command(BaseCommand):
                     unit_price=deal_item.unit_price
                 )
             
-            # Calculate total and link deal to delivery
+            # Calculate total (this will also increment deal.delivery_count via save method)
             delivery.calculate_total()
-            done_deal.delivery = delivery
-            done_deal.save()
             
             self.stdout.write(f'  Created: Delivery #{delivery.id} from Deal #{done_deal.id}')
 
-        # Create a standalone delivery
-        standalone_delivery = Delivery.objects.create(
-            seller=created_sellers[0],
-            supplier=created_suppliers[0],
-            driver=created_drivers[0],
-            delivery_address='Bağdat Cad. No:200, Kadıköy, Istanbul',
-            delivery_note='Direct delivery order',
-            status=Delivery.Status.READY
-        )
-        
-        DeliveryItem.objects.create(
-            delivery=standalone_delivery,
-            product=created_products[8],  # Rice
-            quantity=25,
-            unit_price=created_products[8].price
-        )
-        
-        standalone_delivery.calculate_total()
-        self.stdout.write(f'  Created: Standalone Delivery #{standalone_delivery.id}')
+        # Note: Standalone deliveries are not supported anymore
+        # All deliveries must be created from deals
+        # If you need a standalone delivery, create a deal first, then complete it
 
         # ==================== SUMMARY ====================
         self.stdout.write(
@@ -520,7 +523,7 @@ class Command(BaseCommand):
                 f'   - Drivers: {len(created_drivers)}\n'
                 f'   - Products: {len(created_products)}\n'
                 f'   - Deals: {len(created_deals)}\n'
-                f'   - Deliveries: 2\n\n'
+                f'   - Deliveries: 1\n\n'
                 f'Default password for all sample users: sample123'
             )
         )

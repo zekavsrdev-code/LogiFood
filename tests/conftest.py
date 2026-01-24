@@ -162,14 +162,39 @@ def product(supplier_user, category):
 
 
 @pytest.fixture
-def delivery(seller_user, supplier_user):
-    """Create a test delivery"""
-    from src.orders.models import Delivery
-    return Delivery.objects.create(
+def deal(seller_user, supplier_user):
+    """Create a test deal"""
+    from src.orders.models import Deal
+    return Deal.objects.create(
         seller=seller_user.seller_profile,
         supplier=supplier_user.supplier_profile,
         delivery_address='Test Address',
         delivery_note='Test note',
+        status=Deal.Status.DEALING
+    )
+
+
+@pytest.fixture
+def delivery(deal):
+    """Create a test delivery from deal"""
+    from src.orders.models import Delivery
+    return Delivery.objects.create(
+        deal=deal,
+        delivery_address=deal.delivery_address,
+        delivery_note=deal.delivery_note,
+        status=Delivery.Status.CONFIRMED,
+        supplier_share=100
+    )
+
+
+@pytest.fixture
+def standalone_delivery(seller_user):
+    """Create a standalone delivery (without deal)"""
+    from src.orders.models import Delivery
+    return Delivery.objects.create(
+        seller=seller_user.seller_profile,
+        delivery_address='Standalone Address',
+        delivery_note='Standalone note',
         status=Delivery.Status.CONFIRMED
     )
 

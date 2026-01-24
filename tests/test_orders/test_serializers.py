@@ -30,6 +30,10 @@ class TestDeliverySerializer:
         assert 'status_display' in data
         assert 'items' in data
         assert 'total_amount' in data
+        assert 'supplier_share' in data
+        assert 'is_standalone' in data
+        assert data['is_standalone'] is False  # Delivery from deal
+        assert data['supplier_share'] == 100
     
     def test_delivery_serializer_with_items(self, delivery, delivery_item):
         """Test delivery serializer with items"""
@@ -37,76 +41,25 @@ class TestDeliverySerializer:
         data = serializer.data
         assert len(data['items']) == 1
         assert data['items'][0]['product_name'] == delivery_item.product.name
+    
+    def test_delivery_serializer_standalone(self, standalone_delivery):
+        """Test standalone delivery serialization"""
+        serializer = DeliverySerializer(standalone_delivery)
+        data = serializer.data
+        assert data['is_standalone'] is True
+        assert data['deal'] is None
+        assert 'seller_name' in data
 
 
 @pytest.mark.django_db
 class TestDeliveryCreateSerializer:
-    """Test DeliveryCreateSerializer"""
+    """Test DeliveryCreateSerializer - Note: Deliveries should be created from deals"""
     
-    def test_delivery_create_serializer_valid(self, seller_user, supplier_user, product):
-        """Test valid delivery creation"""
-        data = {
-            'supplier_id': supplier_user.supplier_profile.id,
-            'delivery_address': 'Test Address',
-            'delivery_note': 'Test note',
-            'items': [
-                {'product_id': product.id, 'quantity': 2}
-            ]
-        }
-        serializer = DeliveryCreateSerializer(
-            data=data,
-            context={'request': type('obj', (object,), {'user': seller_user})()}
-        )
-        assert serializer.is_valid()
-        delivery = serializer.save()
-        assert delivery.seller == seller_user.seller_profile
-        assert delivery.supplier == supplier_user.supplier_profile
-        assert delivery.items.count() == 1
-    
-    def test_delivery_create_serializer_invalid_supplier(self, seller_user):
-        """Test delivery creation with invalid supplier"""
-        data = {
-            'supplier_id': 99999,
-            'delivery_address': 'Test Address',
-            'items': [{'product_id': 1, 'quantity': 1}]
-        }
-        serializer = DeliveryCreateSerializer(
-            data=data,
-            context={'request': type('obj', (object,), {'user': seller_user})()}
-        )
-        assert not serializer.is_valid()
-        assert 'supplier_id' in serializer.errors
-    
-    def test_delivery_create_serializer_invalid_items(self, seller_user, supplier_user):
-        """Test delivery creation with invalid items"""
-        data = {
-            'supplier_id': supplier_user.supplier_profile.id,
-            'delivery_address': 'Test Address',
-            'items': [
-                {'product_id': 99999, 'quantity': 1}  # Non-existent product
-            ]
-        }
-        serializer = DeliveryCreateSerializer(
-            data=data,
-            context={'request': type('obj', (object,), {'user': seller_user})()}
-        )
-        # This will fail during create, not validation
-        assert serializer.is_valid()  # Validation passes
-        # But create will raise error (tested in views)
-    
-    def test_delivery_create_serializer_empty_items(self, seller_user, supplier_user):
-        """Test delivery creation with empty items"""
-        data = {
-            'supplier_id': supplier_user.supplier_profile.id,
-            'delivery_address': 'Test Address',
-            'items': []
-        }
-        serializer = DeliveryCreateSerializer(
-            data=data,
-            context={'request': type('obj', (object,), {'user': seller_user})()}
-        )
-        assert not serializer.is_valid()
-        assert 'items' in serializer.errors
+    def test_delivery_create_serializer_is_empty(self):
+        """Test that DeliveryCreateSerializer is empty (deliveries created from deals)"""
+        serializer = DeliveryCreateSerializer()
+        # Serializer should be empty as deliveries are created from deals
+        assert serializer is not None
 
 
 @pytest.mark.django_db

@@ -18,6 +18,17 @@ class DealItemSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'unit_price']
 
 
+class DealSummarySerializer(serializers.ModelSerializer):
+    """Lightweight Deal Serializer for nested use"""
+    seller_name = serializers.CharField(source='seller.business_name', read_only=True)
+    supplier_name = serializers.CharField(source='supplier.company_name', read_only=True)
+    
+    class Meta:
+        model = Deal
+        fields = ['id', 'seller_name', 'supplier_name', 'status', 'created_at']
+        read_only_fields = ['id', 'created_at']
+
+
 class DealSerializer(serializers.ModelSerializer):
     """Deal Serializer"""
     items = DealItemSerializer(many=True, read_only=True)
@@ -38,9 +49,9 @@ class DealSerializer(serializers.ModelSerializer):
             'driver', 'driver_name', 'driver_detail',
             'status', 'status_display',
             'delivery_address', 'delivery_note', 'cost_split',
-            'items', 'total_amount', 'delivery', 'created_at', 'updated_at'
+            'delivery_count', 'items', 'total_amount', 'created_at', 'updated_at'
         ]
-        read_only_fields = ['id', 'seller', 'supplier', 'delivery', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'seller', 'supplier', 'delivery_count', 'created_at', 'updated_at']
     
     def get_driver_name(self, obj):
         if obj.driver:
@@ -194,6 +205,18 @@ class DealCompleteSerializer(serializers.Serializer):
 
 # ==================== DELIVERY SERIALIZERS ====================
 
+class DealSummarySerializer(serializers.ModelSerializer):
+    """Lightweight Deal Serializer for nested use"""
+    seller_name = serializers.CharField(source='seller.business_name', read_only=True)
+    supplier_name = serializers.CharField(source='supplier.company_name', read_only=True)
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+    
+    class Meta:
+        model = Deal
+        fields = ['id', 'seller_name', 'supplier_name', 'status', 'status_display', 'created_at']
+        read_only_fields = ['id', 'created_at']
+
+
 class DeliveryItemSerializer(serializers.ModelSerializer):
     """Delivery Item Serializer"""
     product_name = serializers.CharField(source='product.name', read_only=True)
@@ -208,94 +231,64 @@ class DeliveryItemSerializer(serializers.ModelSerializer):
 class DeliverySerializer(serializers.ModelSerializer):
     """Delivery Serializer"""
     items = DeliveryItemSerializer(many=True, read_only=True)
-    seller_name = serializers.CharField(source='seller.business_name', read_only=True)
-    supplier_name = serializers.CharField(source='supplier.company_name', read_only=True)
+    seller_name = serializers.SerializerMethodField()
+    supplier_name = serializers.SerializerMethodField()
+    seller_detail = serializers.SerializerMethodField()
+    supplier_detail = serializers.SerializerMethodField()
     driver_name = serializers.SerializerMethodField()
+    driver_info = serializers.SerializerMethodField()
     status_display = serializers.CharField(source='get_status_display', read_only=True)
-    seller_detail = SellerProfileSerializer(source='seller', read_only=True)
-    supplier_detail = SupplierProfileSerializer(source='supplier', read_only=True)
-    driver_detail = serializers.SerializerMethodField()
+    deal_detail = DealSummarySerializer(source='deal', read_only=True)
+    is_standalone = serializers.BooleanField(read_only=True)
     
     class Meta:
         model = Delivery
         fields = [
-            'id', 'seller', 'seller_name', 'seller_detail',
-            'supplier', 'supplier_name', 'supplier_detail',
-            'driver', 'driver_name', 'driver_detail',
+            'id', 'deal', 'deal_detail',
+            'seller_name', 'seller_detail',
+            'supplier_name', 'supplier_detail',
+            'supplier_share', 'is_standalone',
+            'driver_profile', 'driver_name', 'driver_info',
+            'driver_phone', 'driver_vehicle_type', 'driver_vehicle_plate', 'driver_license_number',
             'status', 'status_display',
             'total_amount', 'delivery_address', 'delivery_note',
             'items', 'created_at', 'updated_at'
         ]
-        read_only_fields = ['id', 'seller', 'total_amount', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'deal', 'total_amount', 'created_at', 'updated_at']
+    
+    def get_seller_name(self, obj):
+        seller = obj.seller_profile
+        return seller.business_name if seller else None
+    
+    def get_supplier_name(self, obj):
+        supplier = obj.supplier_profile
+        return supplier.company_name if supplier else None
+    
+    def get_seller_detail(self, obj):
+        seller = obj.seller_profile
+        return SellerProfileSerializer(seller).data if seller else None
+    
+    def get_supplier_detail(self, obj):
+        supplier = obj.supplier_profile
+        return SupplierProfileSerializer(supplier).data if supplier else None
     
     def get_driver_name(self, obj):
-        if obj.driver:
-            return obj.driver.user.username
+        if obj.driver_profile:
+            return obj.driver_profile.user.username
+        elif obj.driver_name:
+            return obj.driver_name
         return None
     
-    def get_driver_detail(self, obj):
-        if obj.driver:
-            return DriverProfileSerializer(obj.driver).data
-        return None
+    def get_driver_info(self, obj):
+        """Get complete driver information"""
+        return obj.get_driver_info()
 
 
 class DeliveryCreateSerializer(serializers.Serializer):
-    """Delivery Creation Serializer - For sellers"""
-    supplier_id = serializers.IntegerField()
-    delivery_address = serializers.CharField()
-    delivery_note = serializers.CharField(required=False, allow_blank=True)
-    items = serializers.ListField(
-        child=serializers.DictField(
-            child=serializers.IntegerField()
-        ),
-        min_length=1
-    )
-    
-    def validate_supplier_id(self, value):
-        try:
-            SupplierProfile.objects.get(id=value, is_active=True)
-        except SupplierProfile.DoesNotExist:
-            raise serializers.ValidationError("Supplier not found.")
-        return value
-    
-    def validate_items(self, value):
-        for item in value:
-            if 'product_id' not in item or 'quantity' not in item:
-                raise serializers.ValidationError("Each item must contain 'product_id' and 'quantity'.")
-            if item['quantity'] < 1:
-                raise serializers.ValidationError("Quantity must be at least 1.")
-        return value
-    
-    def create(self, validated_data):
-        user = self.context['request'].user
-        if not user.is_seller:
-            from rest_framework.exceptions import PermissionDenied
-            raise PermissionDenied('Only sellers can create deliveries')
-        seller_profile = user.seller_profile
-        supplier = SupplierProfile.objects.get(id=validated_data['supplier_id'])
-        
-        # Create delivery
-        delivery = Delivery.objects.create(
-            seller=seller_profile,
-            supplier=supplier,
-            delivery_address=validated_data['delivery_address'],
-            delivery_note=validated_data.get('delivery_note', '')
-        )
-        
-        # Create delivery items
-        for item_data in validated_data['items']:
-            product = Product.objects.get(id=item_data['product_id'], supplier=supplier)
-            DeliveryItem.objects.create(
-                delivery=delivery,
-                product=product,
-                quantity=item_data['quantity'],
-                unit_price=product.price
-            )
-        
-        # Calculate total amount
-        delivery.calculate_total()
-        
-        return delivery
+    """Delivery Creation Serializer - Deliveries should be created from deals, not directly"""
+    # This serializer is kept for backward compatibility but should not be used
+    # Deliveries are created automatically when a deal is completed
+    pass
 
 
 class DeliveryStatusUpdateSerializer(serializers.Serializer):

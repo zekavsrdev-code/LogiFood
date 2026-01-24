@@ -1,0 +1,2725 @@
+openapi: 3.0.3
+info:
+  title: LogiFood API
+  version: 1.0.0
+  description: Professional Django REST API for LogiFood
+paths:
+  /api/auth/change-password/:
+    post:
+      operationId: api_auth_change_password_create
+      description: Change password. Old password is validated.
+      tags:
+      - Authentication
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChangePasswordRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ChangePasswordRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ChangePasswordRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/auth/login/:
+    post:
+      operationId: api_auth_login_create
+      description: Login with username and password. Returns JWT access and refresh
+        tokens.
+      tags:
+      - Authentication
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginInputRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/LoginInputRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/LoginInputRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginInput'
+          description: ''
+  /api/auth/logout/:
+    post:
+      operationId: api_auth_logout_create
+      description: Logout with refresh token. Token is added to blacklist.
+      tags:
+      - Authentication
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LogoutInputRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/LogoutInputRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/LogoutInputRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LogoutInput'
+          description: ''
+  /api/auth/profile/:
+    get:
+      operationId: api_auth_profile_retrieve
+      description: View (GET) and update (PUT) user profile.
+      tags:
+      - Authentication
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserWithProfile'
+          description: ''
+    put:
+      operationId: api_auth_profile_update
+      description: View (GET) and update (PUT) user profile.
+      tags:
+      - Authentication
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProfileUpdateInputRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ProfileUpdateInputRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ProfileUpdateInputRequest'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProfileUpdateInput'
+          description: ''
+    patch:
+      operationId: api_auth_profile_partial_update
+      description: View (GET) and update (PUT) user profile.
+      tags:
+      - Authentication
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedUserWithProfileRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedUserWithProfileRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedUserWithProfileRequest'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserWithProfile'
+          description: ''
+  /api/auth/profile/role/:
+    get:
+      operationId: api_auth_profile_role_retrieve
+      description: View and update role-based profile (Supplier/Seller/Driver).
+      tags:
+      - Authentication
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupplierProfile'
+          description: ''
+    put:
+      operationId: api_auth_profile_role_update
+      description: View and update role-based profile (Supplier/Seller/Driver).
+      tags:
+      - Authentication
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SupplierProfileRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/SupplierProfileRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/SupplierProfileRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupplierProfile'
+          description: ''
+    patch:
+      operationId: api_auth_profile_role_partial_update
+      description: View and update role-based profile (Supplier/Seller/Driver).
+      tags:
+      - Authentication
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedSupplierProfileRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedSupplierProfileRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedSupplierProfileRequest'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupplierProfile'
+          description: ''
+  /api/auth/register/:
+    post:
+      operationId: api_auth_register_create
+      description: Role-based user registration. SUPPLIER/SELLER/DRIVER.
+      tags:
+      - Authentication
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserRegistrationRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/UserRegistrationRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/UserRegistrationRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserRegistration'
+          description: ''
+  /api/auth/toggle-availability/:
+    put:
+      operationId: api_auth_toggle_availability_update
+      description: Toggle driver availability status (available ↔ busy).
+      tags:
+      - Authentication
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/health/:
+    get:
+      operationId: api_health_retrieve
+      description: Health check endpoint
+      tags:
+      - Core
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/orders/accept-delivery/{id}/:
+    put:
+      operationId: api_orders_accept_delivery_update
+      description: Driver accepts delivery
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Orders
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeliveryRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/DeliveryRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/DeliveryRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Delivery'
+          description: ''
+    patch:
+      operationId: api_orders_accept_delivery_partial_update
+      description: Driver accepts delivery
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Orders
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedDeliveryRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedDeliveryRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedDeliveryRequest'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Delivery'
+          description: ''
+  /api/orders/available-deliveries/:
+    get:
+      operationId: api_orders_available_deliveries_list
+      description: Available deliveries for drivers
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      tags:
+      - Orders
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedDeliveryList'
+          description: ''
+  /api/orders/deals/:
+    get:
+      operationId: api_orders_deals_list
+      description: Deal ViewSet - Manages deals before deliveries
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      tags:
+      - Orders
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedDealList'
+          description: ''
+    post:
+      operationId: api_orders_deals_create
+      description: Deal ViewSet - Manages deals before deliveries
+      tags:
+      - Orders
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DealCreateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/DealCreateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/DealCreateRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DealCreate'
+          description: ''
+  /api/orders/deals/{id}/:
+    get:
+      operationId: api_orders_deals_retrieve
+      description: Deal ViewSet - Manages deals before deliveries
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - Orders
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Deal'
+          description: ''
+    put:
+      operationId: api_orders_deals_update
+      description: Deal ViewSet - Manages deals before deliveries
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - Orders
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DealRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/DealRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/DealRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Deal'
+          description: ''
+    patch:
+      operationId: api_orders_deals_partial_update
+      description: Deal ViewSet - Manages deals before deliveries
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - Orders
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedDealRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedDealRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedDealRequest'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Deal'
+          description: ''
+    delete:
+      operationId: api_orders_deals_destroy
+      description: Deal ViewSet - Manages deals before deliveries
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - Orders
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/orders/deals/{id}/assign_driver/:
+    put:
+      operationId: api_orders_deals_assign_driver_update
+      description: Assign own driver to deal - Supplier or Seller can assign their
+        own driver
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - Orders
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DealRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/DealRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/DealRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Deal'
+          description: ''
+  /api/orders/deals/{id}/complete/:
+    post:
+      operationId: api_orders_deals_complete_create
+      description: Complete deal and create order - Only when status is DONE
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - Orders
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DealRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/DealRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/DealRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Deal'
+          description: ''
+  /api/orders/deals/{id}/request_driver/:
+    put:
+      operationId: api_orders_deals_request_driver_update
+      description: Request driver for deal - Only when status is LOOKING_FOR_DRIVER
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - Orders
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DealRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/DealRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/DealRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Deal'
+          description: ''
+  /api/orders/deals/{id}/update_status/:
+    put:
+      operationId: api_orders_deals_update_status_update
+      description: Update deal status
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - Orders
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DealRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/DealRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/DealRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Deal'
+          description: ''
+  /api/orders/deliveries/:
+    get:
+      operationId: api_orders_deliveries_list
+      description: Delivery ViewSet - Filtering by role
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      tags:
+      - Orders
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedDeliveryList'
+          description: ''
+    post:
+      operationId: api_orders_deliveries_create
+      description: Delivery ViewSet - Filtering by role
+      tags:
+      - Orders
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          description: No response body
+  /api/orders/deliveries/{id}/:
+    get:
+      operationId: api_orders_deliveries_retrieve
+      description: Delivery ViewSet - Filtering by role
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - Orders
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Delivery'
+          description: ''
+    put:
+      operationId: api_orders_deliveries_update
+      description: Delivery ViewSet - Filtering by role
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - Orders
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeliveryRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/DeliveryRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/DeliveryRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Delivery'
+          description: ''
+    patch:
+      operationId: api_orders_deliveries_partial_update
+      description: Delivery ViewSet - Filtering by role
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - Orders
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedDeliveryRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedDeliveryRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedDeliveryRequest'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Delivery'
+          description: ''
+    delete:
+      operationId: api_orders_deliveries_destroy
+      description: Delivery ViewSet - Filtering by role
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - Orders
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/orders/deliveries/{id}/assign_driver/:
+    put:
+      operationId: api_orders_deliveries_assign_driver_update
+      description: Assign driver to delivery - Only supplier can do this
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - Orders
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeliveryRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/DeliveryRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/DeliveryRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Delivery'
+          description: ''
+  /api/orders/deliveries/{id}/update_status/:
+    put:
+      operationId: api_orders_deliveries_update_status_update
+      description: Update delivery status - Supplier or Driver
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - Orders
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeliveryRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/DeliveryRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/DeliveryRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Delivery'
+          description: ''
+  /api/orders/drivers/:
+    get:
+      operationId: api_orders_drivers_retrieve
+      description: List available drivers - Suppliers can view
+      tags:
+      - Orders
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/orders/suppliers/:
+    get:
+      operationId: api_orders_suppliers_retrieve
+      description: List all active suppliers - Sellers can view
+      tags:
+      - Orders
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/products/categories/:
+    get:
+      operationId: api_products_categories_list
+      description: Category ViewSet - Anyone can view
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - Products
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedCategoryList'
+          description: ''
+  /api/products/categories/{id}/:
+    get:
+      operationId: api_products_categories_retrieve
+      description: Category ViewSet - Anyone can view
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Kategori.
+        required: true
+      tags:
+      - Products
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Category'
+          description: ''
+  /api/products/my-products/:
+    get:
+      operationId: api_products_my_products_list
+      description: Supplier's own products - CRUD operations
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - Products
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedProductList'
+          description: ''
+    post:
+      operationId: api_products_my_products_create
+      description: Supplier's own products - CRUD operations
+      tags:
+      - Products
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProductCreateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ProductCreateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ProductCreateRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductCreate'
+          description: ''
+  /api/products/my-products/{id}/:
+    get:
+      operationId: api_products_my_products_retrieve
+      description: Supplier's own products - CRUD operations
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - Products
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+          description: ''
+    put:
+      operationId: api_products_my_products_update
+      description: Supplier's own products - CRUD operations
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - Products
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProductCreateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ProductCreateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ProductCreateRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductCreate'
+          description: ''
+    patch:
+      operationId: api_products_my_products_partial_update
+      description: Supplier's own products - CRUD operations
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - Products
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedProductCreateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedProductCreateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedProductCreateRequest'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductCreate'
+          description: ''
+    delete:
+      operationId: api_products_my_products_destroy
+      description: Supplier's own products - CRUD operations
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - Products
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/products/products/:
+    get:
+      operationId: api_products_products_list
+      description: List all active products - Anyone can view
+      parameters:
+      - in: query
+        name: category__slug
+        schema:
+          type: string
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      - in: query
+        name: supplier
+        schema:
+          type: integer
+      tags:
+      - Products
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedProductList'
+          description: ''
+  /api/products/products/{id}/:
+    get:
+      operationId: api_products_products_retrieve
+      description: Product detail - Anyone can view
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Products
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+          description: ''
+components:
+  schemas:
+    Category:
+      type: object
+      description: Category Serializer
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          title: Kategori Adı
+          maxLength: 100
+        slug:
+          type: string
+          maxLength: 50
+          pattern: ^[-a-zA-Z0-9_]+$
+        description:
+          type: string
+          nullable: true
+          title: Açıklama
+        parent:
+          type: integer
+          nullable: true
+          title: Üst Kategori
+        children:
+          type: string
+          readOnly: true
+        is_active:
+          type: boolean
+      required:
+      - children
+      - id
+      - name
+      - slug
+    ChangePasswordRequest:
+      type: object
+      description: Password change request.
+      properties:
+        old_password:
+          type: string
+          writeOnly: true
+          minLength: 1
+          description: Current password
+        new_password:
+          type: string
+          writeOnly: true
+          minLength: 1
+          description: New password
+        new_password2:
+          type: string
+          writeOnly: true
+          minLength: 1
+          title: New password confirmation
+          description: New password confirmation
+      required:
+      - new_password
+      - new_password2
+      - old_password
+    Deal:
+      type: object
+      description: Deal Serializer
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        seller:
+          type: integer
+          readOnly: true
+        seller_name:
+          type: string
+          readOnly: true
+        seller_detail:
+          allOf:
+          - $ref: '#/components/schemas/SellerProfile'
+          readOnly: true
+        supplier:
+          type: integer
+          readOnly: true
+        supplier_name:
+          type: string
+          readOnly: true
+        supplier_detail:
+          allOf:
+          - $ref: '#/components/schemas/SupplierProfile'
+          readOnly: true
+        driver:
+          type: integer
+          nullable: true
+        driver_name:
+          type: string
+          readOnly: true
+        driver_detail:
+          type: string
+          readOnly: true
+        status:
+          enum:
+          - DEALING
+          - LOOKING_FOR_DRIVER
+          - DONE
+          - CANCELLED
+          type: string
+          description: |-
+            * `DEALING` - Dealing
+            * `LOOKING_FOR_DRIVER` - Looking for Driver
+            * `DONE` - Done
+            * `CANCELLED` - Cancelled
+        status_display:
+          type: string
+          readOnly: true
+        delivery_address:
+          type: string
+        delivery_note:
+          type: string
+          nullable: true
+        cost_split:
+          type: boolean
+          description: If True, both supplier and seller can request drivers (costs
+            split)
+        delivery_count:
+          type: integer
+          readOnly: true
+          description: Number of deliveries created from this deal
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/DealItem'
+          readOnly: true
+        total_amount:
+          type: string
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - delivery_address
+      - delivery_count
+      - driver_detail
+      - driver_name
+      - id
+      - items
+      - seller
+      - seller_detail
+      - seller_name
+      - status_display
+      - supplier
+      - supplier_detail
+      - supplier_name
+      - total_amount
+      - updated_at
+    DealCreate:
+      type: object
+      description: Deal Creation Serializer - For sellers or suppliers
+      properties:
+        supplier_id:
+          type: integer
+        seller_id:
+          type: integer
+        delivery_address:
+          type: string
+        delivery_note:
+          type: string
+        driver_id:
+          type: integer
+          nullable: true
+        cost_split:
+          type: boolean
+          default: false
+        items:
+          type: array
+          items:
+            type: object
+            additionalProperties:
+              type: integer
+          minItems: 1
+      required:
+      - delivery_address
+      - items
+    DealCreateRequest:
+      type: object
+      description: Deal Creation Serializer - For sellers or suppliers
+      properties:
+        supplier_id:
+          type: integer
+        seller_id:
+          type: integer
+        delivery_address:
+          type: string
+          minLength: 1
+        delivery_note:
+          type: string
+        driver_id:
+          type: integer
+          nullable: true
+        cost_split:
+          type: boolean
+          default: false
+        items:
+          type: array
+          items:
+            type: object
+            additionalProperties:
+              type: integer
+          minItems: 1
+      required:
+      - delivery_address
+      - items
+    DealItem:
+      type: object
+      description: Deal Item Serializer
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        product:
+          type: integer
+        product_name:
+          type: string
+          readOnly: true
+        quantity:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+        unit_price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          readOnly: true
+        total_price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          readOnly: true
+      required:
+      - id
+      - product
+      - product_name
+      - quantity
+      - total_price
+      - unit_price
+    DealItemRequest:
+      type: object
+      description: Deal Item Serializer
+      properties:
+        product:
+          type: integer
+        quantity:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+      required:
+      - product
+      - quantity
+    DealRequest:
+      type: object
+      description: Deal Serializer
+      properties:
+        driver:
+          type: integer
+          nullable: true
+        status:
+          enum:
+          - DEALING
+          - LOOKING_FOR_DRIVER
+          - DONE
+          - CANCELLED
+          type: string
+          description: |-
+            * `DEALING` - Dealing
+            * `LOOKING_FOR_DRIVER` - Looking for Driver
+            * `DONE` - Done
+            * `CANCELLED` - Cancelled
+        delivery_address:
+          type: string
+          minLength: 1
+        delivery_note:
+          type: string
+          nullable: true
+        cost_split:
+          type: boolean
+          description: If True, both supplier and seller can request drivers (costs
+            split)
+      required:
+      - delivery_address
+    DealSummary:
+      type: object
+      description: Lightweight Deal Serializer for nested use
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        seller_name:
+          type: string
+          readOnly: true
+        supplier_name:
+          type: string
+          readOnly: true
+        status:
+          enum:
+          - DEALING
+          - LOOKING_FOR_DRIVER
+          - DONE
+          - CANCELLED
+          type: string
+          description: |-
+            * `DEALING` - Dealing
+            * `LOOKING_FOR_DRIVER` - Looking for Driver
+            * `DONE` - Done
+            * `CANCELLED` - Cancelled
+        status_display:
+          type: string
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - id
+      - seller_name
+      - status_display
+      - supplier_name
+    DealSummaryRequest:
+      type: object
+      description: Lightweight Deal Serializer for nested use
+      properties:
+        status:
+          enum:
+          - DEALING
+          - LOOKING_FOR_DRIVER
+          - DONE
+          - CANCELLED
+          type: string
+          description: |-
+            * `DEALING` - Dealing
+            * `LOOKING_FOR_DRIVER` - Looking for Driver
+            * `DONE` - Done
+            * `CANCELLED` - Cancelled
+    Delivery:
+      type: object
+      description: Delivery Serializer
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        deal:
+          type: integer
+          readOnly: true
+          nullable: true
+          description: The deal this delivery was created from (if any). If null,
+            this is a standalone delivery.
+        deal_detail:
+          allOf:
+          - $ref: '#/components/schemas/DealSummary'
+          readOnly: true
+        seller_name:
+          type: string
+          readOnly: true
+        seller_detail:
+          type: string
+          readOnly: true
+        supplier_name:
+          type: string
+          readOnly: true
+        supplier_detail:
+          type: string
+          readOnly: true
+        supplier_share:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+          title: Supplier Share (%)
+          description: Percentage of delivery owned by supplier (0-100). Only used
+            when delivery is from a deal.
+        is_standalone:
+          type: boolean
+          readOnly: true
+        driver_profile:
+          type: integer
+          nullable: true
+          description: System driver profile if driver is registered in system
+        driver_name:
+          type: string
+          readOnly: true
+        driver_info:
+          type: string
+          readOnly: true
+        driver_phone:
+          type: string
+          nullable: true
+          description: Driver phone number
+          maxLength: 20
+        driver_vehicle_type:
+          type: string
+          nullable: true
+          description: Driver vehicle type
+          maxLength: 20
+        driver_vehicle_plate:
+          type: string
+          nullable: true
+          description: Driver vehicle plate number
+          maxLength: 20
+        driver_license_number:
+          type: string
+          nullable: true
+          description: Driver license number
+          maxLength: 50
+        status:
+          enum:
+          - CONFIRMED
+          - PREPARING
+          - READY
+          - PICKED_UP
+          - IN_TRANSIT
+          - DELIVERED
+          - CANCELLED
+          type: string
+          description: |-
+            * `CONFIRMED` - Confirmed
+            * `PREPARING` - Preparing
+            * `READY` - Ready
+            * `PICKED_UP` - Picked Up
+            * `IN_TRANSIT` - In Transit
+            * `DELIVERED` - Delivered
+            * `CANCELLED` - Cancelled
+        status_display:
+          type: string
+          readOnly: true
+        total_amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          readOnly: true
+        delivery_address:
+          type: string
+        delivery_note:
+          type: string
+          nullable: true
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/DeliveryItem'
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - deal
+      - deal_detail
+      - delivery_address
+      - driver_info
+      - driver_name
+      - id
+      - is_standalone
+      - items
+      - seller_detail
+      - seller_name
+      - status_display
+      - supplier_detail
+      - supplier_name
+      - total_amount
+      - updated_at
+    DeliveryItem:
+      type: object
+      description: Delivery Item Serializer
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        product:
+          type: integer
+        product_name:
+          type: string
+          readOnly: true
+        quantity:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+        unit_price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          readOnly: true
+        total_price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          readOnly: true
+      required:
+      - id
+      - product
+      - product_name
+      - quantity
+      - total_price
+      - unit_price
+    DeliveryItemRequest:
+      type: object
+      description: Delivery Item Serializer
+      properties:
+        product:
+          type: integer
+        quantity:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+      required:
+      - product
+      - quantity
+    DeliveryRequest:
+      type: object
+      description: Delivery Serializer
+      properties:
+        supplier_share:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+          title: Supplier Share (%)
+          description: Percentage of delivery owned by supplier (0-100). Only used
+            when delivery is from a deal.
+        driver_profile:
+          type: integer
+          nullable: true
+          description: System driver profile if driver is registered in system
+        driver_phone:
+          type: string
+          nullable: true
+          description: Driver phone number
+          maxLength: 20
+        driver_vehicle_type:
+          type: string
+          nullable: true
+          description: Driver vehicle type
+          maxLength: 20
+        driver_vehicle_plate:
+          type: string
+          nullable: true
+          description: Driver vehicle plate number
+          maxLength: 20
+        driver_license_number:
+          type: string
+          nullable: true
+          description: Driver license number
+          maxLength: 50
+        status:
+          enum:
+          - CONFIRMED
+          - PREPARING
+          - READY
+          - PICKED_UP
+          - IN_TRANSIT
+          - DELIVERED
+          - CANCELLED
+          type: string
+          description: |-
+            * `CONFIRMED` - Confirmed
+            * `PREPARING` - Preparing
+            * `READY` - Ready
+            * `PICKED_UP` - Picked Up
+            * `IN_TRANSIT` - In Transit
+            * `DELIVERED` - Delivered
+            * `CANCELLED` - Cancelled
+        delivery_address:
+          type: string
+          minLength: 1
+        delivery_note:
+          type: string
+          nullable: true
+      required:
+      - delivery_address
+    LoginInput:
+      type: object
+      description: Login request - username and password.
+      properties:
+        username:
+          type: string
+          description: Username
+      required:
+      - username
+    LoginInputRequest:
+      type: object
+      description: Login request - username and password.
+      properties:
+        username:
+          type: string
+          minLength: 1
+          description: Username
+        password:
+          type: string
+          writeOnly: true
+          minLength: 1
+          description: Password
+      required:
+      - password
+      - username
+    LogoutInput:
+      type: object
+      description: Logout request - refresh token for logout.
+      properties:
+        refresh_token:
+          type: string
+          description: JWT refresh token (will be invalidated for logout)
+      required:
+      - refresh_token
+    LogoutInputRequest:
+      type: object
+      description: Logout request - refresh token for logout.
+      properties:
+        refresh_token:
+          type: string
+          minLength: 1
+          description: JWT refresh token (will be invalidated for logout)
+      required:
+      - refresh_token
+    PaginatedCategoryList:
+      type: object
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Category'
+    PaginatedDealList:
+      type: object
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Deal'
+    PaginatedDeliveryList:
+      type: object
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Delivery'
+    PaginatedProductList:
+      type: object
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Product'
+    PatchedDealRequest:
+      type: object
+      description: Deal Serializer
+      properties:
+        driver:
+          type: integer
+          nullable: true
+        status:
+          enum:
+          - DEALING
+          - LOOKING_FOR_DRIVER
+          - DONE
+          - CANCELLED
+          type: string
+          description: |-
+            * `DEALING` - Dealing
+            * `LOOKING_FOR_DRIVER` - Looking for Driver
+            * `DONE` - Done
+            * `CANCELLED` - Cancelled
+        delivery_address:
+          type: string
+          minLength: 1
+        delivery_note:
+          type: string
+          nullable: true
+        cost_split:
+          type: boolean
+          description: If True, both supplier and seller can request drivers (costs
+            split)
+    PatchedDeliveryRequest:
+      type: object
+      description: Delivery Serializer
+      properties:
+        supplier_share:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+          title: Supplier Share (%)
+          description: Percentage of delivery owned by supplier (0-100). Only used
+            when delivery is from a deal.
+        driver_profile:
+          type: integer
+          nullable: true
+          description: System driver profile if driver is registered in system
+        driver_phone:
+          type: string
+          nullable: true
+          description: Driver phone number
+          maxLength: 20
+        driver_vehicle_type:
+          type: string
+          nullable: true
+          description: Driver vehicle type
+          maxLength: 20
+        driver_vehicle_plate:
+          type: string
+          nullable: true
+          description: Driver vehicle plate number
+          maxLength: 20
+        driver_license_number:
+          type: string
+          nullable: true
+          description: Driver license number
+          maxLength: 50
+        status:
+          enum:
+          - CONFIRMED
+          - PREPARING
+          - READY
+          - PICKED_UP
+          - IN_TRANSIT
+          - DELIVERED
+          - CANCELLED
+          type: string
+          description: |-
+            * `CONFIRMED` - Confirmed
+            * `PREPARING` - Preparing
+            * `READY` - Ready
+            * `PICKED_UP` - Picked Up
+            * `IN_TRANSIT` - In Transit
+            * `DELIVERED` - Delivered
+            * `CANCELLED` - Cancelled
+        delivery_address:
+          type: string
+          minLength: 1
+        delivery_note:
+          type: string
+          nullable: true
+    PatchedProductCreateRequest:
+      type: object
+      description: Product Creation Serializer - For suppliers
+      properties:
+        name:
+          type: string
+          minLength: 1
+          title: Ürün Adı
+          maxLength: 255
+        description:
+          type: string
+          nullable: true
+          title: Açıklama
+        price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          title: Fiyat
+        unit:
+          enum:
+          - KG
+          - GRAM
+          - PIECE
+          - LITER
+          - BOX
+          - PACKAGE
+          type: string
+          description: |-
+            * `KG` - Kilogram
+            * `GRAM` - Gram
+            * `PIECE` - Adet
+            * `LITER` - Litre
+            * `BOX` - Koli
+            * `PACKAGE` - Paket
+          title: Birim
+        stock:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+          title: Stok
+        min_order_quantity:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+          title: Minimum Sipariş Miktarı
+        image:
+          type: string
+          format: binary
+          nullable: true
+        category:
+          type: integer
+          nullable: true
+          title: Kategori
+        is_active:
+          type: boolean
+    PatchedSupplierProfileRequest:
+      type: object
+      description: Supplier Profile Serializer
+      properties:
+        company_name:
+          type: string
+          minLength: 1
+          title: Şirket Adı
+          maxLength: 255
+        tax_number:
+          type: string
+          nullable: true
+          title: Vergi Numarası
+          maxLength: 20
+        address:
+          type: string
+          nullable: true
+          title: Adres
+        city:
+          type: string
+          nullable: true
+          title: Şehir
+          maxLength: 100
+        description:
+          type: string
+          nullable: true
+          title: Açıklama
+        is_active:
+          type: boolean
+    PatchedUserWithProfileRequest:
+      type: object
+      description: User and Profile Serializer - with detailed profile information.
+      properties:
+        email:
+          type: string
+          format: email
+          nullable: true
+          maxLength: 254
+        username:
+          type: string
+          minLength: 1
+          description: Required. 150 characters or fewer. Letters, digits and @/./+/-/_
+            only.
+          pattern: ^[\w.@+-]+$
+          maxLength: 150
+        first_name:
+          type: string
+          maxLength: 150
+        last_name:
+          type: string
+          maxLength: 150
+        phone_number:
+          type: string
+          nullable: true
+          maxLength: 20
+        avatar:
+          type: string
+          format: binary
+          nullable: true
+    Product:
+      type: object
+      description: Product Serializer
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          title: Ürün Adı
+          maxLength: 255
+        slug:
+          type: string
+          readOnly: true
+          pattern: ^[-a-zA-Z0-9_]+$
+        description:
+          type: string
+          nullable: true
+          title: Açıklama
+        price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          title: Fiyat
+        unit:
+          enum:
+          - KG
+          - GRAM
+          - PIECE
+          - LITER
+          - BOX
+          - PACKAGE
+          type: string
+          description: |-
+            * `KG` - Kilogram
+            * `GRAM` - Gram
+            * `PIECE` - Adet
+            * `LITER` - Litre
+            * `BOX` - Koli
+            * `PACKAGE` - Paket
+          title: Birim
+        unit_display:
+          type: string
+          readOnly: true
+        stock:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+          title: Stok
+        min_order_quantity:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+          title: Minimum Sipariş Miktarı
+        image:
+          type: string
+          format: uri
+          nullable: true
+          title: Ürün Resmi
+        is_active:
+          type: boolean
+        supplier:
+          type: integer
+          readOnly: true
+          title: Tedarikçi
+        supplier_name:
+          type: string
+          readOnly: true
+        category:
+          type: integer
+          nullable: true
+          title: Kategori
+        category_name:
+          type: string
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - category_name
+      - created_at
+      - id
+      - name
+      - price
+      - slug
+      - supplier
+      - supplier_name
+      - unit_display
+      - updated_at
+    ProductCreate:
+      type: object
+      description: Product Creation Serializer - For suppliers
+      properties:
+        name:
+          type: string
+          title: Ürün Adı
+          maxLength: 255
+        description:
+          type: string
+          nullable: true
+          title: Açıklama
+        price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          title: Fiyat
+        unit:
+          enum:
+          - KG
+          - GRAM
+          - PIECE
+          - LITER
+          - BOX
+          - PACKAGE
+          type: string
+          description: |-
+            * `KG` - Kilogram
+            * `GRAM` - Gram
+            * `PIECE` - Adet
+            * `LITER` - Litre
+            * `BOX` - Koli
+            * `PACKAGE` - Paket
+          title: Birim
+        stock:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+          title: Stok
+        min_order_quantity:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+          title: Minimum Sipariş Miktarı
+        image:
+          type: string
+          format: uri
+          nullable: true
+        category:
+          type: integer
+          nullable: true
+          title: Kategori
+        is_active:
+          type: boolean
+      required:
+      - name
+      - price
+    ProductCreateRequest:
+      type: object
+      description: Product Creation Serializer - For suppliers
+      properties:
+        name:
+          type: string
+          minLength: 1
+          title: Ürün Adı
+          maxLength: 255
+        description:
+          type: string
+          nullable: true
+          title: Açıklama
+        price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          title: Fiyat
+        unit:
+          enum:
+          - KG
+          - GRAM
+          - PIECE
+          - LITER
+          - BOX
+          - PACKAGE
+          type: string
+          description: |-
+            * `KG` - Kilogram
+            * `GRAM` - Gram
+            * `PIECE` - Adet
+            * `LITER` - Litre
+            * `BOX` - Koli
+            * `PACKAGE` - Paket
+          title: Birim
+        stock:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+          title: Stok
+        min_order_quantity:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+          title: Minimum Sipariş Miktarı
+        image:
+          type: string
+          format: binary
+          nullable: true
+        category:
+          type: integer
+          nullable: true
+          title: Kategori
+        is_active:
+          type: boolean
+      required:
+      - name
+      - price
+    ProfileUpdateInput:
+      type: object
+      description: Profile update request - supports partial updates.
+      properties:
+        first_name:
+          type: string
+          maxLength: 150
+        last_name:
+          type: string
+          maxLength: 150
+        phone_number:
+          type: string
+          maxLength: 20
+        email:
+          type: string
+          format: email
+    ProfileUpdateInputRequest:
+      type: object
+      description: Profile update request - supports partial updates.
+      properties:
+        first_name:
+          type: string
+          maxLength: 150
+        last_name:
+          type: string
+          maxLength: 150
+        phone_number:
+          type: string
+          maxLength: 20
+        email:
+          type: string
+          format: email
+    SellerProfile:
+      type: object
+      description: Seller Profile Serializer
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        username:
+          type: string
+          readOnly: true
+        phone_number:
+          type: string
+          readOnly: true
+        business_name:
+          type: string
+          title: İşletme Adı
+          maxLength: 255
+        business_type:
+          type: string
+          nullable: true
+          title: İşletme Türü
+          maxLength: 100
+        tax_number:
+          type: string
+          nullable: true
+          title: Vergi Numarası
+          maxLength: 20
+        address:
+          type: string
+          nullable: true
+          title: Adres
+        city:
+          type: string
+          nullable: true
+          title: Şehir
+          maxLength: 100
+        description:
+          type: string
+          nullable: true
+          title: Açıklama
+        is_active:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - business_name
+      - created_at
+      - id
+      - phone_number
+      - username
+    SellerProfileRequest:
+      type: object
+      description: Seller Profile Serializer
+      properties:
+        business_name:
+          type: string
+          minLength: 1
+          title: İşletme Adı
+          maxLength: 255
+        business_type:
+          type: string
+          nullable: true
+          title: İşletme Türü
+          maxLength: 100
+        tax_number:
+          type: string
+          nullable: true
+          title: Vergi Numarası
+          maxLength: 20
+        address:
+          type: string
+          nullable: true
+          title: Adres
+        city:
+          type: string
+          nullable: true
+          title: Şehir
+          maxLength: 100
+        description:
+          type: string
+          nullable: true
+          title: Açıklama
+        is_active:
+          type: boolean
+      required:
+      - business_name
+    SupplierProfile:
+      type: object
+      description: Supplier Profile Serializer
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        username:
+          type: string
+          readOnly: true
+        phone_number:
+          type: string
+          readOnly: true
+        company_name:
+          type: string
+          title: Şirket Adı
+          maxLength: 255
+        tax_number:
+          type: string
+          nullable: true
+          title: Vergi Numarası
+          maxLength: 20
+        address:
+          type: string
+          nullable: true
+          title: Adres
+        city:
+          type: string
+          nullable: true
+          title: Şehir
+          maxLength: 100
+        description:
+          type: string
+          nullable: true
+          title: Açıklama
+        is_active:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - company_name
+      - created_at
+      - id
+      - phone_number
+      - username
+    SupplierProfileRequest:
+      type: object
+      description: Supplier Profile Serializer
+      properties:
+        company_name:
+          type: string
+          minLength: 1
+          title: Şirket Adı
+          maxLength: 255
+        tax_number:
+          type: string
+          nullable: true
+          title: Vergi Numarası
+          maxLength: 20
+        address:
+          type: string
+          nullable: true
+          title: Adres
+        city:
+          type: string
+          nullable: true
+          title: Şehir
+          maxLength: 100
+        description:
+          type: string
+          nullable: true
+          title: Açıklama
+        is_active:
+          type: boolean
+      required:
+      - company_name
+    UserRegistration:
+      type: object
+      description: User registration request - role-based (SUPPLIER, SELLER, DRIVER).
+      properties:
+        username:
+          type: string
+          description: Required. 150 characters or fewer. Letters, digits and @/./+/-/_
+            only.
+          pattern: ^[\w.@+-]+$
+          maxLength: 150
+        email:
+          type: string
+          format: email
+          nullable: true
+          maxLength: 254
+        first_name:
+          type: string
+          maxLength: 150
+        last_name:
+          type: string
+          maxLength: 150
+        phone_number:
+          type: string
+          nullable: true
+          maxLength: 20
+        role:
+          enum:
+          - SUPPLIER
+          - SELLER
+          - DRIVER
+          type: string
+          description: |-
+            Role: SUPPLIER, SELLER, DRIVER
+
+            * `SUPPLIER` - Tedarikçi
+            * `SELLER` - Satıcı
+            * `DRIVER` - Sürücü
+        company_name:
+          type: string
+        business_name:
+          type: string
+        business_type:
+          type: string
+        license_number:
+          type: string
+        vehicle_type:
+          enum:
+          - MOTORCYCLE
+          - CAR
+          - VAN
+          - TRUCK
+          type: string
+          description: |-
+            * `MOTORCYCLE` - Motosiklet
+            * `CAR` - Otomobil
+            * `VAN` - Minivan
+            * `TRUCK` - Kamyon
+        vehicle_plate:
+          type: string
+        address:
+          type: string
+        city:
+          type: string
+      required:
+      - role
+      - username
+    UserRegistrationRequest:
+      type: object
+      description: User registration request - role-based (SUPPLIER, SELLER, DRIVER).
+      properties:
+        username:
+          type: string
+          minLength: 1
+          description: Required. 150 characters or fewer. Letters, digits and @/./+/-/_
+            only.
+          pattern: ^[\w.@+-]+$
+          maxLength: 150
+        email:
+          type: string
+          format: email
+          nullable: true
+          maxLength: 254
+        password:
+          type: string
+          writeOnly: true
+          minLength: 1
+          description: Password
+        password2:
+          type: string
+          writeOnly: true
+          minLength: 1
+          title: Password confirmation
+          description: Password confirmation
+        first_name:
+          type: string
+          maxLength: 150
+        last_name:
+          type: string
+          maxLength: 150
+        phone_number:
+          type: string
+          nullable: true
+          maxLength: 20
+        role:
+          enum:
+          - SUPPLIER
+          - SELLER
+          - DRIVER
+          type: string
+          description: |-
+            Role: SUPPLIER, SELLER, DRIVER
+
+            * `SUPPLIER` - Tedarikçi
+            * `SELLER` - Satıcı
+            * `DRIVER` - Sürücü
+        company_name:
+          type: string
+        business_name:
+          type: string
+        business_type:
+          type: string
+        license_number:
+          type: string
+        vehicle_type:
+          enum:
+          - MOTORCYCLE
+          - CAR
+          - VAN
+          - TRUCK
+          type: string
+          description: |-
+            * `MOTORCYCLE` - Motosiklet
+            * `CAR` - Otomobil
+            * `VAN` - Minivan
+            * `TRUCK` - Kamyon
+        vehicle_plate:
+          type: string
+        address:
+          type: string
+        city:
+          type: string
+      required:
+      - password
+      - password2
+      - role
+      - username
+    UserWithProfile:
+      type: object
+      description: User and Profile Serializer - with detailed profile information.
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        email:
+          type: string
+          format: email
+          nullable: true
+          maxLength: 254
+        username:
+          type: string
+          description: Required. 150 characters or fewer. Letters, digits and @/./+/-/_
+            only.
+          pattern: ^[\w.@+-]+$
+          maxLength: 150
+        first_name:
+          type: string
+          maxLength: 150
+        last_name:
+          type: string
+          maxLength: 150
+        phone_number:
+          type: string
+          nullable: true
+          maxLength: 20
+        avatar:
+          type: string
+          format: uri
+          nullable: true
+        role:
+          enum:
+          - SUPPLIER
+          - SELLER
+          - DRIVER
+          type: string
+          description: |-
+            * `SUPPLIER` - Tedarikçi
+            * `SELLER` - Satıcı
+            * `DRIVER` - Sürücü
+          readOnly: true
+        role_display:
+          type: string
+          readOnly: true
+        is_verified:
+          type: boolean
+          readOnly: true
+        profile:
+          type: object
+          additionalProperties: {}
+          nullable: true
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - id
+      - is_verified
+      - profile
+      - role
+      - role_display
+      - username
+  securitySchemes:
+    jwtAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+tags:
+- name: Authentication
+  description: User authentication and profile management endpoints
+- name: Products
+  description: Product and category management endpoints
+- name: Orders
+  description: Order management and discovery endpoints
+- name: Core
+  description: Core utility endpoints

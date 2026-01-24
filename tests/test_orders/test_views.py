@@ -31,8 +31,8 @@ class TestDeliveryViews:
         response = api_client.get('/api/orders/deliveries/')
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
     
-    def test_create_delivery(self, seller_client, supplier_user, product):
-        """Test creating a delivery"""
+    def test_create_delivery_not_allowed(self, seller_client, supplier_user, product):
+        """Test that creating delivery directly is not allowed (must be from deal)"""
         data = {
             'supplier_id': supplier_user.supplier_profile.id,
             'delivery_address': 'Test Address',
@@ -42,28 +42,30 @@ class TestDeliveryViews:
             ]
         }
         response = seller_client.post('/api/orders/deliveries/', data, format='json')
-        assert response.status_code == status.HTTP_201_CREATED
-        assert response.data['success'] is True
-        assert response.data['data']['seller_name'] is not None
+        # Should return 403 as deliveries must be created from deals
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+        assert 'Deliveries must be created from deals' in str(response.data.get('detail', ''))
     
     def test_create_delivery_invalid_supplier(self, seller_client):
-        """Test creating delivery with invalid supplier"""
+        """Test creating delivery with invalid supplier - should return 403 (not allowed)"""
         data = {
             'supplier_id': 99999,
             'delivery_address': 'Test Address',
             'items': [{'product_id': 1, 'quantity': 1}]
         }
         response = seller_client.post('/api/orders/deliveries/', data, format='json')
-        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        # Should return 403 as deliveries must be created from deals
+        assert response.status_code == status.HTTP_403_FORBIDDEN
     
     def test_create_delivery_not_seller(self, supplier_client, supplier_user):
-        """Test creating delivery as non-seller"""
+        """Test creating delivery as non-seller - should return 403 (not allowed)"""
         data = {
             'supplier_id': supplier_user.supplier_profile.id,
             'delivery_address': 'Test Address',
             'items': [{'product_id': 1, 'quantity': 1}]
         }
         response = supplier_client.post('/api/orders/deliveries/', data, format='json')
+        # Should return 403 as deliveries must be created from deals
         assert response.status_code == status.HTTP_403_FORBIDDEN
     
     def test_retrieve_delivery(self, seller_client, delivery):
@@ -87,7 +89,12 @@ class TestDeliveryViews:
     
     def test_update_delivery_status_as_driver(self, driver_client, delivery, driver_user):
         """Test updating delivery status as driver"""
-        delivery.driver = driver_user.driver_profile
+        delivery.driver_profile = driver_user.driver_profile
+        delivery.driver_name = driver_user.driver_profile.user.username
+        delivery.driver_phone = driver_user.driver_profile.user.phone_number
+        delivery.driver_vehicle_type = driver_user.driver_profile.vehicle_type
+        delivery.driver_vehicle_plate = driver_user.driver_profile.vehicle_plate
+        delivery.driver_license_number = driver_user.driver_profile.license_number
         delivery.status = Delivery.Status.PICKED_UP
         delivery.save()
         
@@ -121,7 +128,7 @@ class TestDeliveryViews:
         assert response.status_code == status.HTTP_200_OK
         assert response.data['success'] is True
         delivery.refresh_from_db()
-        assert delivery.driver == driver_user.driver_profile
+        assert delivery.driver_profile == driver_user.driver_profile
         assert delivery.status == Delivery.Status.READY
     
     def test_assign_driver_not_supplier(self, seller_client, delivery, driver_user):
@@ -171,10 +178,12 @@ class TestDiscoveryViews:
         response = seller_client.get('/api/orders/drivers/')
         assert response.status_code == status.HTTP_403_FORBIDDEN
     
-    def test_list_available_deliveries(self, driver_client, delivery, supplier_user, seller_user):
+    def test_list_available_deliveries(self, driver_client, delivery):
         """Test listing available deliveries for driver"""
-        # Set delivery to READY status
+        # Set delivery to READY status and ensure no driver
         delivery.status = Delivery.Status.READY
+        delivery.driver_profile = None
+        delivery.driver_name = None
         delivery.save()
         
         response = driver_client.get('/api/orders/available-deliveries/')
@@ -186,17 +195,20 @@ class TestDiscoveryViews:
         response = seller_client.get('/api/orders/available-deliveries/')
         assert response.status_code == status.HTTP_403_FORBIDDEN
     
-    def test_accept_delivery(self, driver_client, delivery, supplier_user, seller_user):
+    def test_accept_delivery(self, driver_client, delivery, driver_user):
         """Test accepting a delivery"""
-        # Set delivery to READY status
+        # Set delivery to READY status and ensure no driver
         delivery.status = Delivery.Status.READY
+        delivery.driver_profile = None
+        delivery.driver_name = None
         delivery.save()
         
         response = driver_client.put(f'/api/orders/accept-delivery/{delivery.id}/')
         assert response.status_code == status.HTTP_200_OK
         assert response.data['success'] is True
         delivery.refresh_from_db()
-        assert delivery.driver is not None
+        assert delivery.driver_profile is not None
+        assert delivery.driver_name is not None
         assert delivery.status == Delivery.Status.PICKED_UP
     
     def test_accept_delivery_not_driver(self, seller_client, delivery):
@@ -204,9 +216,14 @@ class TestDiscoveryViews:
         response = seller_client.put(f'/api/orders/accept-delivery/{delivery.id}/')
         assert response.status_code == status.HTTP_403_FORBIDDEN
     
-    def test_accept_delivery_already_assigned(self, driver_client, delivery, driver_user, supplier_user, seller_user):
+    def test_accept_delivery_already_assigned(self, driver_client, delivery, driver_user):
         """Test accepting an already assigned delivery"""
-        delivery.driver = driver_user.driver_profile
+        delivery.driver_profile = driver_user.driver_profile
+        delivery.driver_name = driver_user.driver_profile.user.username
+        delivery.driver_phone = driver_user.driver_profile.user.phone_number
+        delivery.driver_vehicle_type = driver_user.driver_profile.vehicle_type
+        delivery.driver_vehicle_plate = driver_user.driver_profile.vehicle_plate
+        delivery.driver_license_number = driver_user.driver_profile.license_number
         delivery.status = Delivery.Status.PICKED_UP
         delivery.save()
         

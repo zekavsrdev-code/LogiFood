@@ -236,10 +236,32 @@ class DealViewSet(viewsets.ModelViewSet):
             )
         
         # Create delivery from deal
+        # Get driver information from deal
+        driver_profile = None
+        driver_name = None
+        driver_phone = None
+        driver_vehicle_type = None
+        driver_vehicle_plate = None
+        driver_license_number = None
+        
+        if deal.driver:
+            driver_profile = deal.driver
+            driver_name = deal.driver.user.get_full_name() or deal.driver.user.username
+            driver_phone = deal.driver.user.phone_number
+            driver_vehicle_type = deal.driver.vehicle_type
+            driver_vehicle_plate = deal.driver.vehicle_plate
+            driver_license_number = deal.driver.license_number
+        
+        # Default supplier_share is 100 (all to supplier), can be adjusted later
         delivery = Delivery.objects.create(
-            seller=deal.seller,
-            supplier=deal.supplier,
-            driver=deal.driver,
+            deal=deal,
+            supplier_share=100,  # Default: all to supplier, can be adjusted
+            driver_profile=driver_profile,
+            driver_name=driver_name,
+            driver_phone=driver_phone,
+            driver_vehicle_type=driver_vehicle_type,
+            driver_vehicle_plate=driver_vehicle_plate,
+            driver_license_number=driver_license_number,
             delivery_address=deal.delivery_address,
             delivery_note=deal.delivery_note,
             status=Delivery.Status.CONFIRMED
@@ -254,10 +276,8 @@ class DealViewSet(viewsets.ModelViewSet):
                 unit_price=deal_item.unit_price
             )
         
-        # Calculate total and link deal to delivery
+        # Calculate total (this will also increment deal.delivery_count via save method)
         delivery.calculate_total()
-        deal.delivery = delivery
-        deal.save()
         
         return success_response(
             data={
@@ -285,11 +305,11 @@ class DeliveryViewSet(viewsets.ModelViewSet):
         user = self.request.user
         
         if user.is_supplier:
-            return Delivery.objects.filter(supplier=user.supplier_profile).select_related('seller', 'supplier', 'driver')
+            return Delivery.objects.filter(deal__supplier=user.supplier_profile).select_related('deal', 'deal__seller', 'deal__supplier', 'driver_profile')
         elif user.is_seller:
-            return Delivery.objects.filter(seller=user.seller_profile).select_related('seller', 'supplier', 'driver')
+            return Delivery.objects.filter(deal__seller=user.seller_profile).select_related('deal', 'deal__seller', 'deal__supplier', 'driver_profile')
         elif user.is_driver:
-            return Delivery.objects.filter(driver=user.driver_profile).select_related('seller', 'supplier', 'driver')
+            return Delivery.objects.filter(driver_profile=user.driver_profile).select_related('deal', 'deal__seller', 'deal__supplier', 'driver_profile')
         else:
             return Delivery.objects.none()
     
@@ -299,26 +319,18 @@ class DeliveryViewSet(viewsets.ModelViewSet):
         return DeliverySerializer
     
     def perform_create(self, serializer):
-        # Only Seller can create deliveries
-        if not self.request.user.is_seller:
-            from rest_framework.exceptions import PermissionDenied
-            raise PermissionDenied('Only sellers can create deliveries')
-        serializer.save(seller=self.request.user.seller_profile)
+        # Deliveries should be created from deals, not directly
+        # This method should not be called as create is overridden
+        pass
     
     def list(self, request, *args, **kwargs):
         response = super().list(request, *args, **kwargs)
         return success_response(data=response.data, message='Deliveries listed successfully')
     
     def create(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        delivery = serializer.save()
-        response_serializer = DeliverySerializer(delivery)
-        return success_response(
-            data=response_serializer.data,
-            message='Delivery created successfully',
-            status_code=status.HTTP_201_CREATED
-        )
+        # Deliveries should be created from deals, not directly
+        from rest_framework.exceptions import PermissionDenied
+        raise PermissionDenied('Deliveries must be created from deals. Please complete a deal first.')
     
     def retrieve(self, request, *args, **kwargs):
         response = super().retrieve(request, *args, **kwargs)
@@ -338,14 +350,14 @@ class DeliveryViewSet(viewsets.ModelViewSet):
             )
         
         # Supplier check
-        if user.is_supplier and delivery.supplier != user.supplier_profile:
+        if user.is_supplier and (not delivery.deal or delivery.deal.supplier != user.supplier_profile):
             return error_response(
                 message='This delivery does not belong to you',
                 status_code=status.HTTP_403_FORBIDDEN
             )
         
         # Driver check
-        if user.is_driver and delivery.driver != user.driver_profile:
+        if user.is_driver and delivery.driver_profile != user.driver_profile:
             return error_response(
                 message='This delivery does not belong to you',
                 status_code=status.HTTP_403_FORBIDDEN
@@ -367,7 +379,7 @@ class DeliveryViewSet(viewsets.ModelViewSet):
         delivery = self.get_object()
         
         # Supplier check
-        if delivery.supplier != request.user.supplier_profile:
+        if not delivery.deal or delivery.deal.supplier != request.user.supplier_profile:
             return error_response(
                 message='This delivery does not belong to you',
                 status_code=status.HTTP_403_FORBIDDEN
@@ -375,8 +387,14 @@ class DeliveryViewSet(viewsets.ModelViewSet):
         
         serializer = DeliveryAssignDriverSerializer(data=request.data)
         if serializer.is_valid():
-            driver = DriverProfile.objects.get(id=serializer.validated_data['driver_id'])
-            delivery.driver = driver
+            driver_profile = DriverProfile.objects.get(id=serializer.validated_data['driver_id'])
+            delivery.driver_profile = driver_profile
+            # Populate driver info from profile
+            delivery.driver_name = driver_profile.user.get_full_name() or driver_profile.user.username
+            delivery.driver_phone = driver_profile.user.phone_number
+            delivery.driver_vehicle_type = driver_profile.vehicle_type
+            delivery.driver_vehicle_plate = driver_profile.vehicle_plate
+            delivery.driver_license_number = driver_profile.license_number
             delivery.status = Delivery.Status.READY
             delivery.save()
             return success_response(
@@ -479,15 +497,16 @@ class AvailableDeliveryListView(generics.ListAPIView):
     def get_queryset(self):
         # Deliveries without driver and ready status
         deliveries = Delivery.objects.filter(
-            driver__isnull=True,
+            driver_profile__isnull=True,
+            driver_name__isnull=True,
             status=Delivery.Status.READY
-        ).select_related('seller', 'supplier')
+        ).select_related('deal', 'deal__seller', 'deal__supplier')
         
         # City filter (based on driver's city)
         driver_city = self.request.user.driver_profile.city
         if driver_city:
             deliveries = deliveries.filter(
-                Q(seller__city__icontains=driver_city) | Q(supplier__city__icontains=driver_city)
+                Q(deal__seller__city__icontains=driver_city) | Q(deal__supplier__city__icontains=driver_city)
             )
         
         return deliveries
@@ -504,13 +523,21 @@ class AcceptDeliveryView(generics.UpdateAPIView):
     
     def get_queryset(self):
         return Delivery.objects.filter(
-            driver__isnull=True,
+            driver_profile__isnull=True,
+            driver_name__isnull=True,
             status=Delivery.Status.READY
         )
     
     def update(self, request, *args, **kwargs):
         delivery = self.get_object()
-        delivery.driver = request.user.driver_profile
+        driver_profile = request.user.driver_profile
+        delivery.driver_profile = driver_profile
+        # Populate driver info from profile
+        delivery.driver_name = driver_profile.user.get_full_name() or driver_profile.user.username
+        delivery.driver_phone = driver_profile.user.phone_number
+        delivery.driver_vehicle_type = driver_profile.vehicle_type
+        delivery.driver_vehicle_plate = driver_profile.vehicle_plate
+        delivery.driver_license_number = driver_profile.license_number
         delivery.status = Delivery.Status.PICKED_UP
         delivery.save()
         
