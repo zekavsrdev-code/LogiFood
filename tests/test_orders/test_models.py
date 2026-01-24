@@ -25,7 +25,8 @@ class TestDealModel:
         assert deal.seller == seller_user.seller_profile
         assert deal.supplier == supplier_user.supplier_profile
         assert deal.status == Deal.Status.DEALING
-        assert deal.delivery_count == 0
+        assert deal.delivery_count == 1  # Default is 1 (each deal must have at least one delivery)
+        assert deal.delivery_cost_split == 50  # Default value
     
     def test_deal_str(self, deal):
         """Test deal string representation"""
@@ -45,13 +46,56 @@ class TestDealModel:
         expected_total = product.price * 2
         assert total == expected_total
     
-    def test_deal_increment_delivery_count(self, deal):
-        """Test deal delivery count increment"""
-        assert deal.delivery_count == 0
-        deal.increment_delivery_count()
-        assert deal.delivery_count == 1
-        deal.increment_delivery_count()
-        assert deal.delivery_count == 2
+    def test_deal_get_actual_delivery_count(self, deal):
+        """Test getting actual delivery count"""
+        assert deal.get_actual_delivery_count() == 0  # No deliveries created yet
+        assert deal.delivery_count == 1  # Planned count is 1
+        
+        # Create a delivery
+        from src.orders.models import Delivery
+        Delivery.objects.create(
+            deal=deal,
+            delivery_address='Test Address',
+            status=Delivery.Status.ESTIMATED,  # Default status is now ESTIMATED
+            supplier_share=100,
+            driver_profile=None
+        )
+        assert deal.get_actual_delivery_count() == 1
+        assert deal.can_create_more_deliveries() is False  # Planned count reached
+    
+    def test_deal_can_create_more_deliveries(self, deal):
+        """Test checking if more deliveries can be created"""
+        # Set planned count to 3
+        deal.delivery_count = 3
+        deal.save()
+        
+        assert deal.can_create_more_deliveries() is True  # 0 < 3
+        
+        # Create 2 deliveries
+        from src.orders.models import Delivery
+        for i in range(2):
+            Delivery.objects.create(
+                deal=deal,
+                delivery_address=f'Test Address {i}',
+                status=Delivery.Status.ESTIMATED,  # Default status is now ESTIMATED
+                supplier_share=100,
+                driver_profile=None
+            )
+        
+        assert deal.get_actual_delivery_count() == 2
+        assert deal.can_create_more_deliveries() is True  # 2 < 3
+        
+        # Create one more
+        Delivery.objects.create(
+            deal=deal,
+            delivery_address='Test Address 3',
+            status=Delivery.Status.ESTIMATED,  # Default status is now ESTIMATED
+            supplier_share=100,
+            driver_profile=None
+        )
+        
+        assert deal.get_actual_delivery_count() == 3
+        assert deal.can_create_more_deliveries() is False  # 3 >= 3
 
 
 @pytest.mark.django_db
@@ -60,11 +104,13 @@ class TestDeliveryModel:
     
     def test_create_delivery_from_deal(self, deal):
         """Test creating a delivery from deal"""
+        initial_actual_count = deal.get_actual_delivery_count()  # Actual delivery count (should be 0 initially)
+        planned_count = deal.delivery_count  # Planned delivery count (should be 1 by default)
         delivery = Delivery.objects.create(
             deal=deal,
             delivery_address='Test Address',
             delivery_note='Test note',
-            status=Delivery.Status.CONFIRMED,
+            status=Delivery.Status.ESTIMATED,  # Default status is now ESTIMATED
             supplier_share=100,
             driver_profile=None,  # No driver for this test
             driver_name=None,
@@ -78,16 +124,19 @@ class TestDeliveryModel:
         assert delivery.supplier_profile == deal.supplier
         assert delivery.supplier_share == 100
         assert delivery.is_3rd_party_delivery is True  # No driver_profile means 3rd party
-        assert delivery.status == Delivery.Status.CONFIRMED
+        assert delivery.status == Delivery.Status.ESTIMATED
         assert delivery.total_amount == Decimal('0.00')
         deal.refresh_from_db()
-        assert deal.delivery_count == 1
+        # delivery_count is now the planned count, not actual count
+        # Actual count should be incremented by 1
+        assert deal.get_actual_delivery_count() == initial_actual_count + 1
+        assert deal.delivery_count == planned_count  # Planned count doesn't change
     
     def test_delivery_validation_error_no_deal(self):
         """Test delivery validation - must have deal"""
         delivery = Delivery(
             delivery_address='Test Address',
-            status=Delivery.Status.CONFIRMED
+            status=Delivery.Status.ESTIMATED  # Default status is now ESTIMATED
         )
         with pytest.raises(ValidationError):
             delivery.clean()
@@ -97,7 +146,7 @@ class TestDeliveryModel:
         delivery = Delivery(
             deal=deal,
             delivery_address='Test Address',
-            status=Delivery.Status.CONFIRMED,
+            status=Delivery.Status.ESTIMATED,  # Default status is now ESTIMATED
             driver_profile=driver_user.driver_profile,
             driver_name='Manual Driver',  # This should cause validation error
             driver_phone='1234567890'
@@ -111,7 +160,7 @@ class TestDeliveryModel:
             deal=deal,
             delivery_address='Test Address',
             supplier_share=150,  # Invalid: > 100
-            status=Delivery.Status.CONFIRMED,
+            status=Delivery.Status.ESTIMATED,  # Default status is now ESTIMATED
             driver_profile=None
         )
         with pytest.raises(ValidationError):

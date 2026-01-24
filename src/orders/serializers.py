@@ -50,7 +50,7 @@ class DealSerializer(serializers.ModelSerializer):
             'driver', 'driver_name', 'driver_detail',
             'status', 'status_display',
             'delivery_handler', 'delivery_handler_display',
-            'cost_split', 'delivery_count', 'items', 'total_amount', 'created_at', 'updated_at'
+            'delivery_cost_split', 'delivery_count', 'items', 'total_amount', 'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'seller', 'supplier', 'delivery_count', 'created_at', 'updated_at']
     
@@ -78,7 +78,13 @@ class DealCreateSerializer(serializers.Serializer):
         default=Deal.DeliveryHandler.SYSTEM_DRIVER,
         help_text='Who will handle the delivery: SYSTEM_DRIVER, SUPPLIER (3rd party), or SELLER (3rd party)'
     )
-    cost_split = serializers.BooleanField(default=False)
+    delivery_cost_split = serializers.IntegerField(
+        required=False,
+        default=50,
+        min_value=0,
+        max_value=100,
+        help_text='Percentage of delivery cost paid by supplier when using system driver (0-100). 0=seller pays all, 100=supplier pays all, 50=split equally. Only used when delivery_handler is SYSTEM_DRIVER. Default: 50'
+    )
     items = serializers.ListField(
         child=serializers.DictField(
             child=serializers.IntegerField()
@@ -151,12 +157,17 @@ class DealCreateSerializer(serializers.Serializer):
         # Create deal
         driver_id = validated_data.get('driver_id')
         delivery_handler = validated_data.get('delivery_handler', Deal.DeliveryHandler.SYSTEM_DRIVER)
+        delivery_cost_split = validated_data.get('delivery_cost_split', 50)
         
         # Validate delivery_handler based on user role
         if user.is_seller and delivery_handler == Deal.DeliveryHandler.SUPPLIER:
             raise serializers.ValidationError({"delivery_handler": "Seller cannot set delivery handler to SUPPLIER."})
         if user.is_supplier and delivery_handler == Deal.DeliveryHandler.SELLER:
             raise serializers.ValidationError({"delivery_handler": "Supplier cannot set delivery handler to SELLER."})
+        
+        # If delivery_handler is not SYSTEM_DRIVER, delivery_cost_split should be 50 (default, not used)
+        if delivery_handler != Deal.DeliveryHandler.SYSTEM_DRIVER:
+            delivery_cost_split = 50
         
         # If delivery_handler is SYSTEM_DRIVER but no driver_id provided, set status to LOOKING_FOR_DRIVER
         # If delivery_handler is SUPPLIER or SELLER, driver_id should be None
@@ -172,7 +183,7 @@ class DealCreateSerializer(serializers.Serializer):
             supplier=supplier,
             driver_id=driver_id,
             delivery_handler=delivery_handler,
-            cost_split=validated_data.get('cost_split', False),
+            delivery_cost_split=delivery_cost_split,
             status=status
         )
         

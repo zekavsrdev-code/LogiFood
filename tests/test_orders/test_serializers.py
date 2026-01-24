@@ -47,7 +47,7 @@ class TestDeliverySerializer:
         delivery = Delivery.objects.create(
             deal=deal,
             delivery_address='Test Address',
-            status=Delivery.Status.CONFIRMED,
+            status=Delivery.Status.ESTIMATED,  # Default status is now ESTIMATED
             driver_profile=None,  # 3rd party delivery
             driver_name=None,
             driver_phone=None

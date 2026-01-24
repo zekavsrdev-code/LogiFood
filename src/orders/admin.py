@@ -10,11 +10,16 @@ class DealItemInline(admin.TabularInline):
 
 @admin.register(Deal)
 class DealAdmin(admin.ModelAdmin):
-    list_display = ['id', 'seller', 'supplier', 'driver', 'delivery_handler', 'status', 'cost_split', 'delivery_count', 'created_at']
-    list_filter = ['status', 'delivery_handler', 'cost_split', 'created_at']
+    list_display = ['id', 'seller', 'supplier', 'driver', 'delivery_handler', 'delivery_cost_split', 'status', 'delivery_count', 'get_actual_delivery_count', 'created_at']
+    list_filter = ['status', 'delivery_handler', 'created_at']
     search_fields = ['seller__business_name', 'supplier__company_name']
     inlines = [DealItemInline]
     ordering = ['-created_at']
+    
+    def get_actual_delivery_count(self, obj):
+        """Get actual number of deliveries created"""
+        return obj.get_actual_delivery_count()
+    get_actual_delivery_count.short_description = 'Actual Deliveries'
 
 
 @admin.register(DealItem)

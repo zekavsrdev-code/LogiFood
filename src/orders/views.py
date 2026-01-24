@@ -175,14 +175,19 @@ class DealViewSet(viewsets.ModelViewSet):
                 status_code=status.HTTP_403_FORBIDDEN
             )
         
-        # If cost_split is False, only one party can request
-        if not deal.cost_split:
-            # If driver is already assigned, cannot request another
-            if deal.driver:
-                return error_response(
-                    message='Driver is already assigned to this deal',
-                    status_code=status.HTTP_400_BAD_REQUEST
-                )
+        # If delivery_handler is not SYSTEM_DRIVER, cannot request driver (3rd party handles it)
+        if deal.delivery_handler != Deal.DeliveryHandler.SYSTEM_DRIVER:
+            return error_response(
+                message='Cannot request driver for 3rd party deliveries',
+                status_code=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # If driver is already assigned, cannot request another
+        if deal.driver:
+            return error_response(
+                message='Driver is already assigned to this deal',
+                status_code=status.HTTP_400_BAD_REQUEST
+            )
         
         serializer = DealDriverRequestSerializer(data=request.data)
         if serializer.is_valid():
@@ -209,10 +214,13 @@ class DealViewSet(viewsets.ModelViewSet):
                 status_code=status.HTTP_400_BAD_REQUEST
             )
         
-        # Check if delivery already exists (check delivery_count)
-        if deal.delivery_count > 0:
+        # Check if all planned deliveries have been created
+        # delivery_count is the planned number of deliveries for this deal
+        # If actual deliveries >= planned deliveries, all deliveries have been created
+        actual_delivery_count = deal.deliveries.count()
+        if actual_delivery_count >= deal.delivery_count:
             return error_response(
-                message='Delivery already created for this deal',
+                message=f'All planned deliveries ({deal.delivery_count}) have already been created for this deal',
                 status_code=status.HTTP_400_BAD_REQUEST
             )
         
@@ -271,38 +279,57 @@ class DealViewSet(viewsets.ModelViewSet):
         # For SUPPLIER or SELLER (3rd party), all driver fields remain None
         # The supplier/seller will handle delivery themselves or provide driver info later
         
-        delivery = Delivery.objects.create(
-            deal=deal,
-            supplier_share=supplier_share,
-            driver_profile=driver_profile,
-            driver_name=driver_name,
-            driver_phone=driver_phone,
-            driver_vehicle_type=driver_vehicle_type,
-            driver_vehicle_plate=driver_vehicle_plate,
-            driver_license_number=driver_license_number,
-            delivery_address=delivery_address,
-            delivery_note=delivery_note,
-            status=Delivery.Status.CONFIRMED
-        )
+        # Calculate how many deliveries still need to be created
+        # delivery_count is the planned number of deliveries for this deal
+        existing_deliveries_count = deal.deliveries.count()
+        remaining_deliveries = deal.delivery_count - existing_deliveries_count
         
-        # Create delivery items from deal items
-        for deal_item in deal.items.all():
-            DeliveryItem.objects.create(
-                delivery=delivery,
-                product=deal_item.product,
-                quantity=deal_item.quantity,
-                unit_price=deal_item.unit_price
+        if remaining_deliveries <= 0:
+            return error_response(
+                message=f'All planned deliveries ({deal.delivery_count}) have already been created for this deal',
+                status_code=status.HTTP_400_BAD_REQUEST
             )
         
-        # Calculate total (this will also increment deal.delivery_count via save method)
-        delivery.calculate_total()
+        # Create all remaining deliveries (delivery_count - existing_deliveries_count)
+        # Each delivery will be created with ESTIMATED status
+        created_deliveries = []
+        for i in range(remaining_deliveries):
+            delivery = Delivery.objects.create(
+                deal=deal,
+                supplier_share=supplier_share,
+                driver_profile=driver_profile,
+                driver_name=driver_name,
+                driver_phone=driver_phone,
+                driver_vehicle_type=driver_vehicle_type,
+                driver_vehicle_plate=driver_vehicle_plate,
+                driver_license_number=driver_license_number,
+                delivery_address=delivery_address,
+                delivery_note=delivery_note,
+                status=Delivery.Status.ESTIMATED  # Created as ESTIMATED status
+            )
+            
+            # Create delivery items from deal items
+            # For now, each delivery gets all items (can be customized later to split items across deliveries)
+            for deal_item in deal.items.all():
+                DeliveryItem.objects.create(
+                    delivery=delivery,
+                    product=deal_item.product,
+                    quantity=deal_item.quantity,
+                    unit_price=deal_item.unit_price
+                )
+            
+            # Calculate total (this will also increment deal.delivery_count via save method)
+            delivery.calculate_total()
+            created_deliveries.append(delivery)
         
         return success_response(
             data={
                 'deal': DealSerializer(deal).data,
-                'delivery': DeliverySerializer(delivery).data
+                'deliveries': [DeliverySerializer(d).data for d in created_deliveries],
+                'created_count': len(created_deliveries),
+                'total_planned': deal.delivery_count
             },
-            message='Deal completed and delivery created successfully',
+            message=f'Deal completed and {len(created_deliveries)} delivery(ies) created successfully',
             status_code=status.HTTP_201_CREATED
         )
 

@@ -85,7 +85,7 @@ class TestDeliveryViews:
         assert response.status_code == status.HTTP_200_OK
         assert response.data['success'] is True
         delivery.refresh_from_db()
-        assert delivery.status == Delivery.Status.CONFIRMED
+        assert delivery.status == Delivery.Status.CONFIRMED  # Updated from ESTIMATED to CONFIRMED
     
     def test_update_delivery_status_as_driver(self, driver_client, delivery, driver_user):
         """Test updating delivery status as driver"""

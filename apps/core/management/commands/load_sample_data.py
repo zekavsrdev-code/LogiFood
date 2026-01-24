@@ -406,8 +406,9 @@ class Command(BaseCommand):
                 'seller': created_sellers[0],
                 'supplier': created_suppliers[0],
                 'driver': created_drivers[0],
+                'delivery_handler': Deal.DeliveryHandler.SYSTEM_DRIVER,
+                'delivery_cost_split': 50,  # Split equally
                 'status': Deal.Status.DEALING,
-                'cost_split': False,
                 'items': [
                     {'product': created_products[0], 'quantity': 50},  # Oranges
                     {'product': created_products[1], 'quantity': 30},  # Tomatoes
@@ -417,8 +418,9 @@ class Command(BaseCommand):
                 'seller': created_sellers[1],
                 'supplier': created_suppliers[1],
                 'driver': None,
-                'status': Deal.Status.LOOKING_FOR_DRIVER,
-                'cost_split': True,
+                'delivery_handler': Deal.DeliveryHandler.SUPPLIER,  # Supplier handles delivery (3rd party)
+                'delivery_cost_split': 50,  # Not used for 3rd party, but set to default
+                'status': Deal.Status.DEALING,
                 'items': [
                     {'product': created_products[3], 'quantity': 10},  # Beef
                     {'product': created_products[4], 'quantity': 20},  # Chicken
@@ -428,8 +430,9 @@ class Command(BaseCommand):
                 'seller': created_sellers[2],
                 'supplier': created_suppliers[2],
                 'driver': created_drivers[2],
+                'delivery_handler': Deal.DeliveryHandler.SYSTEM_DRIVER,
+                'delivery_cost_split': 60,  # Supplier pays 60%, seller pays 40%
                 'status': Deal.Status.DONE,
-                'cost_split': False,
                 'items': [
                     {'product': created_products[5], 'quantity': 50},  # Milk
                     {'product': created_products[6], 'quantity': 5},   # Cheese
@@ -458,7 +461,9 @@ class Command(BaseCommand):
 
         # Create delivery from the DONE deal
         done_deal = created_deals[2]  # The deal with status DONE
-        if done_deal.status == Deal.Status.DONE and done_deal.delivery_count == 0:
+        # Check if deal is DONE and no deliveries have been created yet
+        # delivery_count is the planned count (default is 1), so we check actual count
+        if done_deal.status == Deal.Status.DONE and done_deal.deliveries.count() == 0:
             # Get driver information from deal
             driver_profile = None
             driver_name = None
@@ -508,7 +513,7 @@ class Command(BaseCommand):
                 driver_license_number=final_driver_license_number,
                 delivery_address=delivery_address,
                 delivery_note=delivery_note,
-                status=Delivery.Status.CONFIRMED
+                status=Delivery.Status.ESTIMATED  # Default status is now ESTIMATED
             )
             
             # Create delivery items from deal items
@@ -520,7 +525,9 @@ class Command(BaseCommand):
                     unit_price=deal_item.unit_price
                 )
             
-            # Calculate total (this will also increment deal.delivery_count via save method)
+            # Calculate total
+            # Note: delivery_count is now the planned count, not actual count
+            # Actual count is tracked via deal.deliveries.count()
             delivery.calculate_total()
             
             self.stdout.write(f'  Created: Delivery #{delivery.id} from Deal #{done_deal.id}')

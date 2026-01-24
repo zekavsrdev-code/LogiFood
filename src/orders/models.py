@@ -52,15 +52,18 @@ class Deal(TimeStampedModel):
         verbose_name='Delivery Handler',
         help_text='Who will handle the delivery: System driver, Supplier (3rd party), or Seller (3rd party)'
     )
-    cost_split = models.BooleanField(
-        default=False,
-        verbose_name='Cost Split',
-        help_text='If True, both supplier and seller can request drivers (costs split)'
+    # Delivery cost split - only used when delivery_handler is SYSTEM_DRIVER
+    # Indicates how delivery cost is split between supplier and seller (0-100)
+    # 0 = seller pays all, 100 = supplier pays all, 50 = split equally
+    delivery_cost_split = models.PositiveIntegerField(
+        default=50,
+        verbose_name='Delivery Cost Split (%)',
+        help_text='Percentage of delivery cost paid by supplier when using system driver (0-100). 0=seller pays all, 100=supplier pays all, 50=split equally. Only used when delivery_handler is SYSTEM_DRIVER.'
     )
     delivery_count = models.PositiveIntegerField(
-        default=0,
+        default=1,
         verbose_name='Delivery Count',
-        help_text='Number of deliveries created from this deal'
+        help_text='Number of deliveries planned for this deal. For example, 200kg of onions can be delivered in 3 separate deliveries. This is the planned count, not the actual count.'
     )
     
     class Meta:
@@ -77,10 +80,13 @@ class Deal(TimeStampedModel):
         total = sum(item.total_price for item in self.items.all())
         return total
     
-    def increment_delivery_count(self):
-        """Increment delivery count when a delivery is created from this deal"""
-        self.delivery_count += 1
-        self.save(update_fields=['delivery_count'])
+    def get_actual_delivery_count(self):
+        """Get the actual number of deliveries created from this deal"""
+        return self.deliveries.count()
+    
+    def can_create_more_deliveries(self):
+        """Check if more deliveries can be created for this deal"""
+        return self.get_actual_delivery_count() < self.delivery_count
 
 
 class DealItem(TimeStampedModel):
@@ -112,6 +118,7 @@ class Delivery(TimeStampedModel):
     """Delivery Model - Created from Deal, tracks delivery progress"""
     
     class Status(models.TextChoices):
+        ESTIMATED = 'ESTIMATED', 'Estimated'
         CONFIRMED = 'CONFIRMED', 'Confirmed'
         PREPARING = 'PREPARING', 'Preparing'
         READY = 'READY', 'Ready'
@@ -181,7 +188,7 @@ class Delivery(TimeStampedModel):
         verbose_name='Driver License Number',
         help_text='Driver license number'
     )
-    status = models.CharField(max_length=20, choices=Status.choices, default=Status.CONFIRMED, verbose_name='Status')
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.ESTIMATED, verbose_name='Status')
     total_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0, verbose_name='Total Amount')
     delivery_address = models.TextField(verbose_name='Delivery Address')
     delivery_note = models.TextField(blank=True, null=True, verbose_name='Delivery Note')
@@ -246,18 +253,9 @@ class Delivery(TimeStampedModel):
         
         super().save(*args, **kwargs)
         
-        # Update deal delivery count
-        if self.deal:
-            if is_new or old_deal_id != self.deal_id:
-                self.deal.increment_delivery_count()
-        elif old_deal_id:
-            # Delivery was removed from deal, decrement count
-            try:
-                old_deal = Deal.objects.get(pk=old_deal_id)
-                old_deal.delivery_count = max(0, old_deal.delivery_count - 1)
-                old_deal.save(update_fields=['delivery_count'])
-            except Deal.DoesNotExist:
-                pass
+        # Note: delivery_count is the planned count, not the actual count
+        # Actual count is tracked via deal.deliveries.count()
+        # No need to increment/decrement delivery_count anymore
     
     def get_driver_info(self):
         """Get driver information - from system or manual entry"""

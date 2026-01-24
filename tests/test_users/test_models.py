@@ -57,9 +57,9 @@ class TestUserModel:
         )
         # Email is no longer unique, so this should succeed
         user2 = User.objects.create_user(
-            email='test@example.com',
-            username='testuser2',
+                email='test@example.com',
+                username='testuser2',
             password='testpass123',
             role=User.Role.SELLER
-        )
+            )
         assert user2.email == 'test@example.com'

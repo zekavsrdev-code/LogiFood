@@ -162,13 +162,16 @@ def product(supplier_user, category):
 
 
 @pytest.fixture
-def deal(seller_user, supplier_user):
+def deal(seller_user, supplier_user, driver_user):
     """Create a test deal"""
     from src.orders.models import Deal
     return Deal.objects.create(
         seller=seller_user.seller_profile,
         supplier=supplier_user.supplier_profile,
+        driver=driver_user.driver_profile,
         delivery_handler=Deal.DeliveryHandler.SYSTEM_DRIVER,
+        delivery_cost_split=50,  # Default: split equally
+        delivery_count=1,  # Default is 1 (each deal must have at least one delivery)
         status=Deal.Status.DEALING
     )
 
@@ -186,7 +189,7 @@ def delivery(deal):
         deal=deal,
         delivery_address='Test Address',
         delivery_note='Test note',
-        status=Delivery.Status.CONFIRMED,
+        status=Delivery.Status.ESTIMATED,  # Default status is now ESTIMATED
         supplier_share=100,
         driver_profile=driver_profile,
         # Manual driver fields should be None when using system driver
