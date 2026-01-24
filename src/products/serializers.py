@@ -36,6 +36,7 @@ class ProductSerializer(serializers.ModelSerializer):
 
 class ProductCreateSerializer(serializers.ModelSerializer):
     """Product Creation Serializer - For suppliers"""
+    image = serializers.ImageField(required=False, allow_null=True)
     
     class Meta:
         model = Product
