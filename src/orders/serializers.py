@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from .models import Deal, DealItem, Delivery, DeliveryItem
 from src.users.models import SupplierProfile, DriverProfile, SellerProfile
+from src.users.serializers import SupplierProfileSerializer, SellerProfileSerializer, DriverProfileSerializer
 from src.products.models import Product
 
 
@@ -25,12 +26,17 @@ class DealSerializer(serializers.ModelSerializer):
     driver_name = serializers.SerializerMethodField()
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     total_amount = serializers.SerializerMethodField()
+    seller_detail = SellerProfileSerializer(source='seller', read_only=True)
+    supplier_detail = SupplierProfileSerializer(source='supplier', read_only=True)
+    driver_detail = serializers.SerializerMethodField()
     
     class Meta:
         model = Deal
         fields = [
-            'id', 'seller', 'seller_name', 'supplier', 'supplier_name',
-            'driver', 'driver_name', 'status', 'status_display',
+            'id', 'seller', 'seller_name', 'seller_detail',
+            'supplier', 'supplier_name', 'supplier_detail',
+            'driver', 'driver_name', 'driver_detail',
+            'status', 'status_display',
             'delivery_address', 'delivery_note', 'cost_split',
             'items', 'total_amount', 'delivery', 'created_at', 'updated_at'
         ]
@@ -39,6 +45,11 @@ class DealSerializer(serializers.ModelSerializer):
     def get_driver_name(self, obj):
         if obj.driver:
             return obj.driver.user.username
+        return None
+    
+    def get_driver_detail(self, obj):
+        if obj.driver:
+            return DriverProfileSerializer(obj.driver).data
         return None
     
     def get_total_amount(self, obj):
@@ -201,12 +212,17 @@ class DeliverySerializer(serializers.ModelSerializer):
     supplier_name = serializers.CharField(source='supplier.company_name', read_only=True)
     driver_name = serializers.SerializerMethodField()
     status_display = serializers.CharField(source='get_status_display', read_only=True)
+    seller_detail = SellerProfileSerializer(source='seller', read_only=True)
+    supplier_detail = SupplierProfileSerializer(source='supplier', read_only=True)
+    driver_detail = serializers.SerializerMethodField()
     
     class Meta:
         model = Delivery
         fields = [
-            'id', 'seller', 'seller_name', 'supplier', 'supplier_name',
-            'driver', 'driver_name', 'status', 'status_display',
+            'id', 'seller', 'seller_name', 'seller_detail',
+            'supplier', 'supplier_name', 'supplier_detail',
+            'driver', 'driver_name', 'driver_detail',
+            'status', 'status_display',
             'total_amount', 'delivery_address', 'delivery_note',
             'items', 'created_at', 'updated_at'
         ]
@@ -215,6 +231,11 @@ class DeliverySerializer(serializers.ModelSerializer):
     def get_driver_name(self, obj):
         if obj.driver:
             return obj.driver.user.username
+        return None
+    
+    def get_driver_detail(self, obj):
+        if obj.driver:
+            return DriverProfileSerializer(obj.driver).data
         return None
 
 
