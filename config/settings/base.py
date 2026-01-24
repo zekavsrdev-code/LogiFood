@@ -166,12 +166,23 @@ CORS_ALLOWED_ORIGINS = config(
 CORS_ALLOW_CREDENTIALS = True
 
 # API Documentation
+# Schema is automatically generated from serializers at runtime
+# Access via: /api/schema/ (JSON) or /api/docs/ (Swagger UI)
 SPECTACULAR_SETTINGS = {
     'TITLE': 'LogiFood API',
     'DESCRIPTION': 'Professional Django REST API for LogiFood',
     'VERSION': '1.0.0',
-    'SERVE_INCLUDE_SCHEMA': False,
+    'SERVE_INCLUDE_SCHEMA': False,  # Schema is generated dynamically from serializers
     'COMPONENT_SPLIT_REQUEST': True,
+    'TAGS': [
+        {'name': 'Authentication', 'description': 'User authentication and profile management endpoints'},
+        {'name': 'Products', 'description': 'Product and category management endpoints'},
+        {'name': 'Orders', 'description': 'Order management and discovery endpoints'},
+        {'name': 'Core', 'description': 'Core utility endpoints'},
+    ],
+    'POSTPROCESSING_HOOKS': [
+        'config.settings.spectacular_hooks.postprocess_tags',
+    ],
 }
 
 # Logging
