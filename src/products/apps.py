@@ -6,3 +6,7 @@ class ProductsConfig(AppConfig):
     name = 'src.products'
     label = 'products'
     verbose_name = 'Ürünler'
+    
+    def ready(self):
+        """Import signals when app is ready"""
+        import src.products.signals  # noqa

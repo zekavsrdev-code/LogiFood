@@ -18,6 +18,7 @@ from .serializers import (
 from apps.core.utils import success_response
 from apps.core.permissions import IsSupplier
 from apps.core.pagination import StandardResultsSetPagination
+from apps.core.cache import cache_get_or_set, cache_key, invalidate_model_cache
 
 
 # ==================== CATEGORY VIEWS ====================
@@ -38,6 +39,16 @@ class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
     ordering_fields = ['name', 'created_at']
     ordering = ['name']
     
+    def get_queryset(self):
+        """Get categories with cache."""
+        cache_key_str = cache_key('categories', 'root', 'active')
+        
+        def get_categories():
+            return list(Category.objects.filter(is_active=True, parent__isnull=True).prefetch_related('children'))
+        
+        categories = cache_get_or_set(cache_key_str, get_categories, timeout=600)  # 10 minutes
+        return categories
+    
     def list(self, request, *args, **kwargs):
         """List all active root categories."""
         response = super().list(request, *args, **kwargs)
@@ -45,8 +56,17 @@ class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
     
     def retrieve(self, request, *args, **kwargs):
         """Retrieve category detail with nested children."""
-        response = super().retrieve(request, *args, **kwargs)
-        return success_response(data=response.data, message='Category detail retrieved successfully')
+        instance = self.get_object()
+        
+        # Cache category detail with children
+        cache_key_str = cache_key('category', 'detail', category_id=instance.id)
+        
+        def get_category_data():
+            serializer = self.get_serializer(instance)
+            return serializer.data
+        
+        data = cache_get_or_set(cache_key_str, get_category_data, timeout=600)  # 10 minutes
+        return success_response(data=data, message='Category detail retrieved successfully')
 
 
 # ==================== PRODUCT VIEWS ====================
@@ -85,6 +105,32 @@ class ProductListView(generics.ListAPIView):
     
     def list(self, request, *args, **kwargs):
         """List all active products with applied filters."""
+        # Only cache if no filters are applied (most common case)
+        has_filters = any([
+            request.query_params.get('category__slug'),
+            request.query_params.get('supplier'),
+            request.query_params.get('min_price'),
+            request.query_params.get('max_price'),
+            request.query_params.get('search'),
+        ])
+        
+        if not has_filters:
+            # Cache unfiltered product list
+            cache_key_str = cache_key('products', 'list', 'active')
+            
+            def get_products():
+                queryset = self.get_queryset()
+                page = self.paginate_queryset(queryset)
+                if page is not None:
+                    serializer = self.get_serializer(page, many=True)
+                    return self.get_paginated_response(serializer.data).data
+                serializer = self.get_serializer(queryset, many=True)
+                return serializer.data
+            
+            data = cache_get_or_set(cache_key_str, get_products, timeout=300)  # 5 minutes
+            return success_response(data=data, message='Products listed successfully')
+        
+        # Use normal flow for filtered queries
         response = super().list(request, *args, **kwargs)
         return success_response(data=response.data, message='Products listed successfully')
 
@@ -102,8 +148,16 @@ class ProductDetailView(generics.RetrieveAPIView):
     def retrieve(self, request, *args, **kwargs):
         """Retrieve product detail."""
         instance = self.get_object()
-        serializer = self.get_serializer(instance)
-        return success_response(data=serializer.data, message='Product detail')
+        
+        # Cache product detail
+        cache_key_str = cache_key('product', 'detail', product_id=instance.id)
+        
+        def get_product_data():
+            serializer = self.get_serializer(instance)
+            return serializer.data
+        
+        data = cache_get_or_set(cache_key_str, get_product_data, timeout=300)  # 5 minutes
+        return success_response(data=data, message='Product detail')
 
 
 class SupplierProductViewSet(viewsets.ModelViewSet):
@@ -139,10 +193,12 @@ class SupplierProductViewSet(viewsets.ModelViewSet):
     
     def perform_create(self, serializer):
         """Set supplier and created_by when creating a product."""
-        serializer.save(
+        instance = serializer.save(
             supplier=self.request.user.supplier_profile,
             created_by=self.request.user
         )
+        # Invalidate product caches
+        invalidate_model_cache(Product)
     
     def perform_destroy(self, instance):
         """Soft delete - set is_active=False instead of actual deletion."""
@@ -170,15 +226,24 @@ class SupplierProductViewSet(viewsets.ModelViewSet):
     
     def update(self, request, *args, **kwargs):
         """Update product."""
+        instance = self.get_object()
         response = super().update(request, *args, **kwargs)
+        # Invalidate cache for this product and product list
+        invalidate_model_cache(Product, instance_id=instance.id)
         return success_response(data=response.data, message='Product updated successfully')
     
     def partial_update(self, request, *args, **kwargs):
         """Partially update product."""
+        instance = self.get_object()
         response = super().partial_update(request, *args, **kwargs)
+        # Invalidate cache for this product and product list
+        invalidate_model_cache(Product, instance_id=instance.id)
         return success_response(data=response.data, message='Product updated successfully')
     
     def destroy(self, request, *args, **kwargs):
         """Soft delete product."""
+        instance = self.get_object()
         super().destroy(request, *args, **kwargs)
+        # Invalidate cache for this product and product list
+        invalidate_model_cache(Product, instance_id=instance.id)
         return success_response(message='Product deleted successfully')
