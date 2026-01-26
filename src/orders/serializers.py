@@ -1,5 +1,6 @@
 from rest_framework import serializers
-from .models import Deal, DealItem, Delivery, DeliveryItem
+from decimal import Decimal
+from .models import Deal, DealItem, Delivery, DeliveryItem, RequestToDriver
 from src.users.models import SupplierProfile, DriverProfile, SellerProfile
 from src.users.serializers import SupplierProfileSerializer, SellerProfileSerializer, DriverProfileSerializer
 from src.products.models import Product
@@ -221,12 +222,23 @@ class DealDriverAssignSerializer(serializers.Serializer):
 class DealDriverRequestSerializer(serializers.Serializer):
     """Deal Driver Request Serializer - For requesting drivers when status is LOOKING_FOR_DRIVER"""
     driver_id = serializers.IntegerField()
+    requested_price = serializers.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        min_value=Decimal('0.01'),
+        help_text='Price offered to driver'
+    )
     
     def validate_driver_id(self, value):
         try:
             DriverProfile.objects.get(id=value, is_active=True, is_available=True)
         except DriverProfile.DoesNotExist:
             raise serializers.ValidationError("Available driver not found.")
+        return value
+    
+    def validate_requested_price(self, value):
+        if value <= 0:
+            raise serializers.ValidationError("Requested price must be greater than 0.")
         return value
 
 
@@ -329,6 +341,58 @@ class DeliveryCreateSerializer(serializers.Serializer):
     # This serializer is kept for backward compatibility but should not be used
     # Deliveries are created automatically when a deal is completed
     pass
+
+
+class RequestToDriverSerializer(serializers.ModelSerializer):
+    """Request to Driver Serializer"""
+    driver_name = serializers.CharField(source='driver.user.username', read_only=True)
+    driver_detail = serializers.SerializerMethodField()
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+    deal_detail = DealSummarySerializer(source='deal', read_only=True)
+    
+    class Meta:
+        model = RequestToDriver
+        fields = [
+            'id', 'deal', 'deal_detail', 'driver', 'driver_name', 'driver_detail',
+            'requested_price', 'driver_proposed_price', 'final_price',
+            'status', 'status_display',
+            'supplier_approved', 'seller_approved', 'driver_approved',
+            'created_by', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'deal', 'driver', 'final_price', 'status', 'supplier_approved', 'seller_approved', 'driver_approved', 'created_by', 'created_at', 'updated_at']
+    
+    def get_driver_detail(self, obj):
+        return DriverProfileSerializer(obj.driver).data
+
+
+class RequestToDriverProposePriceSerializer(serializers.Serializer):
+    """Driver Propose Price Serializer"""
+    proposed_price = serializers.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        help_text='Price proposed by driver (counter offer)'
+    )
+    
+    def validate_proposed_price(self, value):
+        if value <= 0:
+            raise serializers.ValidationError("Proposed price must be greater than 0.")
+        return value
+
+
+class RequestToDriverApproveSerializer(serializers.Serializer):
+    """Approve Request to Driver Serializer"""
+    final_price = serializers.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        min_value=Decimal('0.01'),
+        required=False,
+        help_text='Final agreed price (use requested_price or driver_proposed_price if not provided)'
+    )
+    
+    def validate_final_price(self, value):
+        if value is not None and value <= 0:
+            raise serializers.ValidationError("Final price must be greater than 0.")
+        return value
 
 
 class DeliveryStatusUpdateSerializer(serializers.Serializer):

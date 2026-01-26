@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Deal, DealItem, Delivery, DeliveryItem
+from .models import Deal, DealItem, Delivery, DeliveryItem, RequestToDriver
 
 
 class DealItemInline(admin.TabularInline):
@@ -71,3 +71,11 @@ class DeliveryItemAdmin(admin.ModelAdmin):
     list_filter = ['delivery__status']
     search_fields = ['delivery__id', 'product__name']
     readonly_fields = ['total_price', 'created_at', 'updated_at']
+
+
+@admin.register(RequestToDriver)
+class RequestToDriverAdmin(admin.ModelAdmin):
+    list_display = ['id', 'deal', 'driver', 'requested_price', 'driver_proposed_price', 'final_price', 'status', 'supplier_approved', 'seller_approved', 'driver_approved', 'created_by', 'created_at']
+    list_filter = ['status', 'supplier_approved', 'seller_approved', 'driver_approved', 'created_at']
+    search_fields = ['deal__id', 'driver__user__username', 'created_by__username']
+    ordering = ['-created_at']

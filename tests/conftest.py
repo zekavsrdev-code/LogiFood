@@ -75,24 +75,27 @@ def authenticated_client(api_client, user):
 
 
 @pytest.fixture
-def supplier_client(api_client, supplier_user):
+def supplier_client(supplier_user):
     """Authenticated supplier API client"""
-    api_client.force_authenticate(user=supplier_user)
-    return api_client
+    client = APIClient()
+    client.force_authenticate(user=supplier_user)
+    return client
 
 
 @pytest.fixture
-def seller_client(api_client, seller_user):
+def seller_client(seller_user):
     """Authenticated seller API client"""
-    api_client.force_authenticate(user=seller_user)
-    return api_client
+    client = APIClient()
+    client.force_authenticate(user=seller_user)
+    return client
 
 
 @pytest.fixture
-def driver_client(api_client, driver_user):
+def driver_client(driver_user):
     """Authenticated driver API client"""
-    api_client.force_authenticate(user=driver_user)
-    return api_client
+    client = APIClient()
+    client.force_authenticate(user=driver_user)
+    return client
 
 
 @pytest.fixture
@@ -212,4 +215,16 @@ def delivery_item(delivery, product):
         product=product,
         quantity=5,
         unit_price=product.price
+    )
+
+
+@pytest.fixture
+def driver_request(deal, driver_user):
+    """Create a test driver request"""
+    from src.orders.models import RequestToDriver
+    return RequestToDriver.objects.create(
+        deal=deal,
+        driver=driver_user.driver_profile,
+        requested_price=Decimal('150.00'),
+        created_by=deal.seller.user
     )

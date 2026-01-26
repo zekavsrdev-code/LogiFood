@@ -2,6 +2,7 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import (
     DealViewSet,
+    RequestToDriverViewSet,
     DeliveryViewSet,
     SupplierListView,
     DriverListView,
@@ -13,6 +14,7 @@ app_name = 'orders'
 
 router = DefaultRouter()
 router.register(r'deals', DealViewSet, basename='deal')
+router.register(r'driver-requests', RequestToDriverViewSet, basename='driver-request')
 router.register(r'deliveries', DeliveryViewSet, basename='delivery')
 
 urlpatterns = [

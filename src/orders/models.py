@@ -114,6 +114,139 @@ class DealItem(TimeStampedModel):
         super().save(*args, **kwargs)
 
 
+class RequestToDriver(TimeStampedModel):
+    """Request to Driver Model - For LOOKING_FOR_DRIVER status deals with SYSTEM_DRIVER handler"""
+    
+    class Status(models.TextChoices):
+        PENDING = 'PENDING', 'Pending'  # Request sent, waiting for driver response
+        DRIVER_PROPOSED = 'DRIVER_PROPOSED', 'Driver Proposed'  # Driver proposed a price
+        ACCEPTED = 'ACCEPTED', 'Accepted'  # Price accepted, driver assigned to deal
+        REJECTED = 'REJECTED', 'Rejected'  # Request rejected by driver or supplier/seller
+        COUNTER_OFFERED = 'COUNTER_OFFERED', 'Counter Offered'  # Counter offer made
+    
+    deal = models.ForeignKey(
+        Deal,
+        on_delete=models.CASCADE,
+        related_name='driver_requests',
+        verbose_name='Deal',
+        help_text='The deal this request is for. Only valid for SYSTEM_DRIVER delivery_handler.'
+    )
+    driver = models.ForeignKey(
+        'users.DriverProfile',
+        on_delete=models.CASCADE,
+        related_name='driver_requests',
+        verbose_name='Driver',
+        help_text='Driver who received this request'
+    )
+    requested_price = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        verbose_name='Requested Price',
+        help_text='Price offered by supplier/seller to driver'
+    )
+    driver_proposed_price = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        verbose_name='Driver Proposed Price',
+        help_text='Price proposed by driver (counter offer)'
+    )
+    final_price = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        verbose_name='Final Price',
+        help_text='Final agreed price when request is accepted'
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.PENDING,
+        verbose_name='Status'
+    )
+    # Approval flags - all 3 parties (supplier, seller, driver) must approve
+    supplier_approved = models.BooleanField(
+        default=False,
+        verbose_name='Supplier Approved',
+        help_text='Supplier has approved the price'
+    )
+    seller_approved = models.BooleanField(
+        default=False,
+        verbose_name='Seller Approved',
+        help_text='Seller has approved the price'
+    )
+    driver_approved = models.BooleanField(
+        default=False,
+        verbose_name='Driver Approved',
+        help_text='Driver has approved the price'
+    )
+    
+    class Meta:
+        db_table = 'requests_to_driver'
+        verbose_name = 'Request to Driver'
+        verbose_name_plural = 'Requests to Driver'
+        ordering = ['-created_at']
+        unique_together = [['deal', 'driver']]  # One request per driver per deal
+    
+    def __str__(self):
+        return f"Request #{self.id} - Deal #{self.deal.id} to Driver {self.driver.user.username}"
+    
+    def can_approve(self, user):
+        """Check if user can approve this request - All 3 parties (supplier, seller, driver) can approve"""
+        # Get fresh deal from database to ensure delivery_handler and supplier/seller are current
+        deal = Deal.objects.get(pk=self.deal_id)
+        if deal.delivery_handler != Deal.DeliveryHandler.SYSTEM_DRIVER:
+            return False
+        
+        # Driver can always approve (if they are the requested driver)
+        # Use ID comparison to avoid issues with cached objects
+        if user.is_driver:
+            return self.driver_id == user.driver_profile.id if user.driver_profile else False
+        
+        # Supplier can approve if they are part of the deal
+        # Use ID comparison to avoid issues with cached objects
+        if user.is_supplier:
+            supplier_profile_id = user.supplier_profile.id if user.supplier_profile else None
+            return deal.supplier_id == supplier_profile_id if supplier_profile_id else False
+        
+        # Seller can approve if they are part of the deal
+        # Use ID comparison to avoid issues with cached objects
+        if user.is_seller:
+            seller_profile_id = user.seller_profile.id if user.seller_profile else None
+            return deal.seller_id == seller_profile_id if seller_profile_id else False
+        
+        return False
+    
+    def is_fully_approved(self):
+        """Check if request is fully approved - All 3 parties (supplier, seller, driver) must approve"""
+        # Get fresh deal from database to ensure delivery_handler is current
+        # This avoids issues with cached deal relationships
+        deal = Deal.objects.get(pk=self.deal_id)
+        if deal.delivery_handler != Deal.DeliveryHandler.SYSTEM_DRIVER:
+            return False
+        
+        # All 3 parties must approve: supplier, seller, and driver
+        return self.supplier_approved and self.seller_approved and self.driver_approved
+    
+    def accept(self, final_price):
+        """Accept the request and assign driver to deal"""
+        if not self.is_fully_approved():
+            raise ValueError("Request must be fully approved before acceptance")
+        
+        self.status = self.Status.ACCEPTED
+        self.final_price = final_price
+        self.save()
+        
+        # Assign driver to deal
+        self.deal.driver = self.driver
+        self.deal.status = Deal.Status.DEALING
+        self.deal.save()
+        
+        return self
+
+
 class Delivery(TimeStampedModel):
     """Delivery Model - Created from Deal, tracks delivery progress"""
     

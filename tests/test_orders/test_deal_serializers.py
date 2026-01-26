@@ -246,10 +246,11 @@ class TestDealDriverRequestSerializer:
         """Test deal driver request serializer"""
         driver_user.driver_profile.is_available = True
         driver_user.driver_profile.save()
-        data = {'driver_id': driver_user.driver_profile.id}
+        data = {'driver_id': driver_user.driver_profile.id, 'requested_price': '150.00'}
         serializer = DealDriverRequestSerializer(data=data)
         assert serializer.is_valid()
         assert serializer.validated_data['driver_id'] == driver_user.driver_profile.id
+        assert serializer.validated_data['requested_price'] == Decimal('150.00')
     
     def test_deal_driver_request_invalid_id(self):
         """Test deal driver request with invalid driver id"""

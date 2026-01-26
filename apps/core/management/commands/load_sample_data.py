@@ -11,7 +11,7 @@ from django.contrib.auth import get_user_model
 from decimal import Decimal
 from src.users.models import SupplierProfile, SellerProfile, DriverProfile
 from src.products.models import Category, Product
-from src.orders.models import Deal, DealItem, Delivery, DeliveryItem
+from src.orders.models import Deal, DealItem, Delivery, DeliveryItem, RequestToDriver
 
 User = get_user_model()
 
@@ -31,6 +31,7 @@ class Command(BaseCommand):
             self.stdout.write(self.style.WARNING('Deleting all existing sample data...'))
             DeliveryItem.objects.all().delete()
             Delivery.objects.all().delete()
+            RequestToDriver.objects.all().delete()
             DealItem.objects.all().delete()
             Deal.objects.all().delete()
             Product.objects.all().delete()
@@ -429,13 +430,35 @@ class Command(BaseCommand):
             {
                 'seller': created_sellers[2],
                 'supplier': created_suppliers[2],
-                'driver': created_drivers[2],
+                'driver': None,  # No driver initially - will be requested
                 'delivery_handler': Deal.DeliveryHandler.SYSTEM_DRIVER,
-                'delivery_cost_split': 60,  # Supplier pays 60%, seller pays 40%
-                'status': Deal.Status.DONE,
+                'delivery_cost_split': 50,  # Split equally
+                'status': Deal.Status.LOOKING_FOR_DRIVER,  # Looking for driver
                 'items': [
                     {'product': created_products[5], 'quantity': 50},  # Milk
                     {'product': created_products[6], 'quantity': 5},   # Cheese
+                ]
+            },
+            {
+                'seller': created_sellers[0],
+                'supplier': created_suppliers[1],
+                'driver': created_drivers[2],
+                'delivery_handler': Deal.DeliveryHandler.SYSTEM_DRIVER,
+                'delivery_cost_split': 100,  # Supplier pays all
+                'status': Deal.Status.DONE,
+                'items': [
+                    {'product': created_products[0], 'quantity': 100},  # Oranges
+                ]
+            },
+            {
+                'seller': created_sellers[1],
+                'supplier': created_suppliers[0],
+                'driver': None,
+                'delivery_handler': Deal.DeliveryHandler.SYSTEM_DRIVER,
+                'delivery_cost_split': 0,  # Seller pays all
+                'status': Deal.Status.LOOKING_FOR_DRIVER,  # Looking for driver
+                'items': [
+                    {'product': created_products[3], 'quantity': 25},  # Beef
                 ]
             },
         ]
@@ -443,94 +466,170 @@ class Command(BaseCommand):
         created_deals = []
         for deal_data in deals_data:
             items_data = deal_data.pop('items')
-            deal = Deal.objects.create(**deal_data)
+            # Set created_by for the deal
+            deal_creator = deal_data['seller'].user if 'seller' in deal_data else deal_data['supplier'].user
+            deal = Deal.objects.create(**deal_data, created_by=deal_creator)
             
             for item_data in items_data:
                 DealItem.objects.create(
                     deal=deal,
                     product=item_data['product'],
                     quantity=item_data['quantity'],
-                    unit_price=item_data['product'].price
+                    unit_price=item_data['product'].price,
+                    created_by=deal_creator
                 )
             
             created_deals.append(deal)
             self.stdout.write(f'  Created: Deal #{deal.id} - {deal.seller.business_name} & {deal.supplier.company_name}')
 
+        # ==================== CREATE DRIVER REQUESTS ====================
+        self.stdout.write('\n4. Creating driver requests...')
+        
+        # Find deals with LOOKING_FOR_DRIVER status
+        looking_for_driver_deals = [d for d in created_deals if d.status == Deal.Status.LOOKING_FOR_DRIVER]
+        created_requests = []
+        
+        for deal in looking_for_driver_deals:
+            # Create requests to different drivers
+            for driver in created_drivers:
+                # Skip if driver is already assigned to this deal
+                if deal.driver == driver:
+                    continue
+                
+                # Create request with different prices based on deal
+                requested_price = Decimal('150.00') if deal.delivery_cost_split == 50 else Decimal('200.00')
+                
+                # Determine who created the request (supplier or seller based on delivery_cost_split)
+                if deal.delivery_cost_split == 100:
+                    creator = deal.supplier.user
+                elif deal.delivery_cost_split == 0:
+                    creator = deal.seller.user
+                else:
+                    # Split - seller creates the request
+                    creator = deal.seller.user
+                
+                request = RequestToDriver.objects.create(
+                    deal=deal,
+                    driver=driver,
+                    requested_price=requested_price,
+                    status=RequestToDriver.Status.PENDING,
+                    created_by=creator
+                )
+                created_requests.append(request)
+                self.stdout.write(f'  Created: Request #{request.id} - Deal #{deal.id} to Driver {driver.user.username}')
+        
+        # Simulate some driver responses
+        if created_requests:
+            # First request: Driver proposes a price
+            if len(created_requests) > 0:
+                request1 = created_requests[0]
+                request1.driver_proposed_price = Decimal('175.00')
+                request1.status = RequestToDriver.Status.DRIVER_PROPOSED
+                request1.save()
+                self.stdout.write(f'  Updated: Request #{request1.id} - Driver proposed price {request1.driver_proposed_price}')
+            
+            # Second request: Driver approves directly
+            if len(created_requests) > 1:
+                request2 = created_requests[1]
+                request2.driver_approved = True
+                request2.supplier_approved = True
+                request2.seller_approved = True
+                request2.final_price = request2.requested_price
+                request2.status = RequestToDriver.Status.ACCEPTED
+                request2.save()
+                # Assign driver to deal
+                request2.deal.driver = request2.driver
+                request2.deal.status = Deal.Status.DEALING
+                request2.deal.save()
+                self.stdout.write(f'  Updated: Request #{request2.id} - All parties approved, driver assigned to deal')
+            
+            # Third request: Partial approval (only supplier approved)
+            if len(created_requests) > 2:
+                request3 = created_requests[2]
+                request3.supplier_approved = True
+                request3.save()
+                self.stdout.write(f'  Updated: Request #{request3.id} - Supplier approved, waiting for seller and driver')
+
         # ==================== CREATE DELIVERIES ====================
-        self.stdout.write('\n4. Creating deliveries...')
+        self.stdout.write('\n5. Creating deliveries...')
 
         # Create delivery from the DONE deal
-        done_deal = created_deals[2]  # The deal with status DONE
-        # Check if deal is DONE and no deliveries have been created yet
-        # delivery_count is the planned count (default is 1), so we check actual count
-        if done_deal.status == Deal.Status.DONE and done_deal.deliveries.count() == 0:
-            # Get driver information from deal
-            driver_profile = None
-            driver_name = None
-            driver_phone = None
-            driver_vehicle_type = None
-            driver_vehicle_plate = None
-            driver_license_number = None
-            
-            if done_deal.driver:
-                driver_profile = done_deal.driver
-                driver_name = done_deal.driver.user.get_full_name() or done_deal.driver.user.username
-                driver_phone = done_deal.driver.user.phone_number
-                driver_vehicle_type = done_deal.driver.vehicle_type
-                driver_vehicle_plate = done_deal.driver.vehicle_plate
-                driver_license_number = done_deal.driver.license_number
-            
-            # Get delivery address and note from deal data (stored separately for sample data)
-            delivery_address = 'Alsancak Cad. No:30, Konak, Izmir'  # From deal data
-            delivery_note = 'Regular delivery'  # From deal data
-            
-            # Set driver information based on delivery_handler
-            if done_deal.delivery_handler == Deal.DeliveryHandler.SYSTEM_DRIVER:
-                # Use system driver - only set driver_profile, not manual fields
-                final_driver_profile = driver_profile
-                final_driver_name = None
-                final_driver_phone = None
-                final_driver_vehicle_type = None
-                final_driver_vehicle_plate = None
-                final_driver_license_number = None
-            else:
-                # For 3rd party deliveries, all driver fields are None
-                final_driver_profile = None
-                final_driver_name = None
-                final_driver_phone = None
-                final_driver_vehicle_type = None
-                final_driver_vehicle_plate = None
-                final_driver_license_number = None
-            
-            delivery = Delivery.objects.create(
-                deal=done_deal,
-                supplier_share=100,  # Default: all to supplier
-                driver_profile=final_driver_profile,
-                driver_name=final_driver_name,
-                driver_phone=final_driver_phone,
-                driver_vehicle_type=final_driver_vehicle_type,
-                driver_vehicle_plate=final_driver_vehicle_plate,
-                driver_license_number=final_driver_license_number,
-                delivery_address=delivery_address,
-                delivery_note=delivery_note,
-                status=Delivery.Status.ESTIMATED  # Default status is now ESTIMATED
-            )
-            
-            # Create delivery items from deal items
-            for deal_item in done_deal.items.all():
-                DeliveryItem.objects.create(
-                    delivery=delivery,
-                    product=deal_item.product,
-                    quantity=deal_item.quantity,
-                    unit_price=deal_item.unit_price
+        done_deals = [d for d in created_deals if d.status == Deal.Status.DONE]
+        created_deliveries = []
+        
+        for done_deal in done_deals:
+            # Check if deal is DONE and no deliveries have been created yet
+            # delivery_count is the planned count (default is 1), so we check actual count
+            if done_deal.status == Deal.Status.DONE and done_deal.deliveries.count() == 0:
+                # Get driver information from deal
+                driver_profile = None
+                driver_name = None
+                driver_phone = None
+                driver_vehicle_type = None
+                driver_vehicle_plate = None
+                driver_license_number = None
+                
+                if done_deal.driver:
+                    driver_profile = done_deal.driver
+                    driver_name = done_deal.driver.user.get_full_name() or done_deal.driver.user.username
+                    driver_phone = done_deal.driver.user.phone_number
+                    driver_vehicle_type = done_deal.driver.vehicle_type
+                    driver_vehicle_plate = done_deal.driver.vehicle_plate
+                    driver_license_number = done_deal.driver.license_number
+                
+                # Get delivery address and note from deal data (stored separately for sample data)
+                delivery_address = 'Alsancak Cad. No:30, Konak, Izmir'  # From deal data
+                delivery_note = 'Regular delivery'  # From deal data
+                
+                # Set driver information based on delivery_handler
+                if done_deal.delivery_handler == Deal.DeliveryHandler.SYSTEM_DRIVER:
+                    # Use system driver - only set driver_profile, not manual fields
+                    final_driver_profile = driver_profile
+                    final_driver_name = None
+                    final_driver_phone = None
+                    final_driver_vehicle_type = None
+                    final_driver_vehicle_plate = None
+                    final_driver_license_number = None
+                else:
+                    # For 3rd party deliveries, all driver fields are None
+                    final_driver_profile = None
+                    final_driver_name = None
+                    final_driver_phone = None
+                    final_driver_vehicle_type = None
+                    final_driver_vehicle_plate = None
+                    final_driver_license_number = None
+                
+                delivery = Delivery.objects.create(
+                    deal=done_deal,
+                    supplier_share=100,  # Default: all to supplier
+                    driver_profile=final_driver_profile,
+                    driver_name=final_driver_name,
+                    driver_phone=final_driver_phone,
+                    driver_vehicle_type=final_driver_vehicle_type,
+                    driver_vehicle_plate=final_driver_vehicle_plate,
+                    driver_license_number=final_driver_license_number,
+                    delivery_address=delivery_address,
+                    delivery_note=delivery_note,
+                    status=Delivery.Status.ESTIMATED,  # Default status is now ESTIMATED
+                    created_by=done_deal.created_by if hasattr(done_deal, 'created_by') and done_deal.created_by else done_deal.seller.user
                 )
-            
-            # Calculate total
-            # Note: delivery_count is now the planned count, not actual count
-            # Actual count is tracked via deal.deliveries.count()
-            delivery.calculate_total()
-            
-            self.stdout.write(f'  Created: Delivery #{delivery.id} from Deal #{done_deal.id}')
+                
+                # Create delivery items from deal items
+                for deal_item in done_deal.items.all():
+                    DeliveryItem.objects.create(
+                        delivery=delivery,
+                        product=deal_item.product,
+                        quantity=deal_item.quantity,
+                        unit_price=deal_item.unit_price,
+                        created_by=done_deal.created_by if hasattr(done_deal, 'created_by') and done_deal.created_by else done_deal.seller.user
+                    )
+                
+                # Calculate total
+                # Note: delivery_count is now the planned count, not actual count
+                # Actual count is tracked via deal.deliveries.count()
+                delivery.calculate_total()
+                created_deliveries.append(delivery)
+                self.stdout.write(f'  Created: Delivery #{delivery.id} from Deal #{done_deal.id}')
 
         # Note: Standalone deliveries are not supported anymore
         # All deliveries must be created from deals
@@ -546,7 +645,8 @@ class Command(BaseCommand):
                 f'   - Drivers: {len(created_drivers)}\n'
                 f'   - Products: {len(created_products)}\n'
                 f'   - Deals: {len(created_deals)}\n'
-                f'   - Deliveries: 1\n\n'
+                f'   - Driver Requests: {len(created_requests)}\n'
+                f'   - Deliveries: {len(created_deliveries)}\n\n'
                 f'Default password for all sample users: sample123'
             )
         )

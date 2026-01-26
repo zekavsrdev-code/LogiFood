@@ -1,10 +1,18 @@
+"""
+Order management views (Deals, Deliveries, Driver Requests).
+
+All views use DRF generic views and viewsets following best practices:
+- ViewSets for CRUD operations
+- Generic views for specific read/update operations
+- Custom actions for business logic
+"""
 from rest_framework import status, viewsets, generics, filters
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from django.db.models import Q
 from django_filters.rest_framework import DjangoFilterBackend
 
-from .models import Deal, Delivery, DeliveryItem
+from .models import Deal, Delivery, DeliveryItem, RequestToDriver
 from .serializers import (
     DealSerializer,
     DealCreateSerializer,
@@ -12,6 +20,9 @@ from .serializers import (
     DealDriverAssignSerializer,
     DealDriverRequestSerializer,
     DealCompleteSerializer,
+    RequestToDriverSerializer,
+    RequestToDriverProposePriceSerializer,
+    RequestToDriverApproveSerializer,
     DeliverySerializer,
     DeliveryCreateSerializer,
     DeliveryStatusUpdateSerializer,
@@ -25,8 +36,20 @@ from apps.core.pagination import StandardResultsSetPagination
 
 # ==================== DEAL VIEWS ====================
 
+
 class DealViewSet(viewsets.ModelViewSet):
-    """Deal ViewSet - Manages deals before deliveries"""
+    """
+    Deal management ViewSet.
+    
+    Full CRUD operations for deals:
+    - GET /api/orders/deals/ - List user's deals (filtered by role)
+    - POST /api/orders/deals/ - Create new deal
+    - GET /api/orders/deals/{id}/ - Retrieve deal detail
+    - PUT /api/orders/deals/{id}/update_status/ - Update deal status
+    - PUT /api/orders/deals/{id}/assign_driver/ - Assign driver to deal
+    - PUT /api/orders/deals/{id}/request_driver/ - Request driver for deal
+    - POST /api/orders/deals/{id}/complete/ - Complete deal and create deliveries
+    """
     serializer_class = DealSerializer
     permission_classes = [IsAuthenticated]
     pagination_class = StandardResultsSetPagination
@@ -36,25 +59,33 @@ class DealViewSet(viewsets.ModelViewSet):
     ordering = ['-created_at']
     
     def get_queryset(self):
+        """Return deals filtered by user's role."""
         user = self.request.user
         
         if user.is_supplier:
-            return Deal.objects.filter(supplier=user.supplier_profile).select_related('seller', 'supplier', 'driver')
+            return Deal.objects.filter(
+                supplier=user.supplier_profile
+            ).select_related('seller', 'supplier', 'driver')
         elif user.is_seller:
-            return Deal.objects.filter(seller=user.seller_profile).select_related('seller', 'supplier', 'driver')
+            return Deal.objects.filter(
+                seller=user.seller_profile
+            ).select_related('seller', 'supplier', 'driver')
         else:
             return Deal.objects.none()
     
     def get_serializer_class(self):
+        """Return appropriate serializer based on action."""
         if self.action == 'create':
             return DealCreateSerializer
         return DealSerializer
     
     def list(self, request, *args, **kwargs):
+        """List user's deals."""
         response = super().list(request, *args, **kwargs)
         return success_response(data=response.data, message='Deals listed successfully')
     
     def create(self, request, *args, **kwargs):
+        """Create a new deal."""
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         deal = serializer.save(created_by=request.user)
@@ -66,12 +97,17 @@ class DealViewSet(viewsets.ModelViewSet):
         )
     
     def retrieve(self, request, *args, **kwargs):
+        """Retrieve deal detail."""
         response = super().retrieve(request, *args, **kwargs)
         return success_response(data=response.data, message='Deal detail')
     
     @action(detail=True, methods=['put'], permission_classes=[IsAuthenticated])
     def update_status(self, request, pk=None):
-        """Update deal status"""
+        """
+        Update deal status.
+        
+        Only seller or supplier who are part of the deal can update status.
+        """
         deal = self.get_object()
         user = request.user
         
@@ -106,7 +142,12 @@ class DealViewSet(viewsets.ModelViewSet):
     
     @action(detail=True, methods=['put'], permission_classes=[IsAuthenticated])
     def assign_driver(self, request, pk=None):
-        """Assign own driver to deal - Supplier or Seller can assign their own driver"""
+        """
+        Assign own driver to deal.
+        
+        Supplier or Seller can assign their own driver directly.
+        Changes deal status to DEALING if it was LOOKING_FOR_DRIVER.
+        """
         deal = self.get_object()
         user = request.user
         
@@ -145,7 +186,16 @@ class DealViewSet(viewsets.ModelViewSet):
     
     @action(detail=True, methods=['put'], permission_classes=[IsAuthenticated])
     def request_driver(self, request, pk=None):
-        """Request driver for deal - Only when status is LOOKING_FOR_DRIVER"""
+        """
+        Request driver for deal.
+        
+        Only available when:
+        - Deal status is LOOKING_FOR_DRIVER
+        - Delivery handler is SYSTEM_DRIVER
+        - No driver is already assigned
+        
+        Creates a RequestToDriver instance that requires approval from all parties.
+        """
         deal = self.get_object()
         user = request.user
         
@@ -192,18 +242,44 @@ class DealViewSet(viewsets.ModelViewSet):
         serializer = DealDriverRequestSerializer(data=request.data)
         if serializer.is_valid():
             driver = DriverProfile.objects.get(id=serializer.validated_data['driver_id'])
-            deal.driver = driver
-            deal.status = Deal.Status.DEALING
-            deal.save()
+            requested_price = serializer.validated_data['requested_price']
+            
+            # Check if request already exists
+            if RequestToDriver.objects.filter(deal=deal, driver=driver).exists():
+                return error_response(
+                    message='Request to this driver already exists',
+                    status_code=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Create request to driver
+            # created_by is the user who created the request (supplier or seller)
+            driver_request = RequestToDriver.objects.create(
+                deal=deal,
+                driver=driver,
+                requested_price=requested_price,
+                status=RequestToDriver.Status.PENDING,
+                created_by=request.user
+            )
+            
             return success_response(
-                data=DealSerializer(deal).data,
-                message='Driver request sent successfully'
+                data=RequestToDriverSerializer(driver_request).data,
+                message='Driver request sent successfully',
+                status_code=status.HTTP_201_CREATED
             )
         return error_response(message='Driver request failed', errors=serializer.errors)
     
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
     def complete(self, request, pk=None):
-        """Complete deal and create order - Only when status is DONE"""
+        """
+        Complete deal and create deliveries.
+        
+        Only available when:
+        - Deal status is DONE
+        - Not all planned deliveries have been created yet
+        
+        Creates the remaining deliveries (delivery_count - existing deliveries)
+        with ESTIMATED status. Each delivery includes all deal items.
+        """
         deal = self.get_object()
         user = request.user
         
@@ -257,7 +333,6 @@ class DealViewSet(viewsets.ModelViewSet):
         delivery_note = serializer.validated_data.get('delivery_note', '')
         supplier_share = serializer.validated_data.get('supplier_share', 100)
         
-        # Create delivery from deal
         # Get driver information based on delivery_handler
         driver_profile = None
         driver_name = None
@@ -305,7 +380,8 @@ class DealViewSet(viewsets.ModelViewSet):
                 driver_license_number=driver_license_number,
                 delivery_address=delivery_address,
                 delivery_note=delivery_note,
-                status=Delivery.Status.ESTIMATED  # Created as ESTIMATED status
+                status=Delivery.Status.ESTIMATED,  # Created as ESTIMATED status
+                created_by=request.user
             )
             
             # Create delivery items from deal items
@@ -315,10 +391,11 @@ class DealViewSet(viewsets.ModelViewSet):
                     delivery=delivery,
                     product=deal_item.product,
                     quantity=deal_item.quantity,
-                    unit_price=deal_item.unit_price
+                    unit_price=deal_item.unit_price,
+                    created_by=request.user
                 )
             
-            # Calculate total (this will also increment deal.delivery_count via save method)
+            # Calculate total
             delivery.calculate_total()
             created_deliveries.append(delivery)
         
@@ -336,8 +413,19 @@ class DealViewSet(viewsets.ModelViewSet):
 
 # ==================== DELIVERY VIEWS ====================
 
+
 class DeliveryViewSet(viewsets.ModelViewSet):
-    """Delivery ViewSet - Filtering by role"""
+    """
+    Delivery management ViewSet.
+    
+    Full CRUD operations for deliveries (filtered by role):
+    - GET /api/orders/deliveries/ - List user's deliveries
+    - GET /api/orders/deliveries/{id}/ - Retrieve delivery detail
+    - PUT /api/orders/deliveries/{id}/update_status/ - Update delivery status
+    - PUT /api/orders/deliveries/{id}/assign_driver/ - Assign driver to delivery
+    
+    Note: Deliveries cannot be created directly - they must be created from deals.
+    """
     serializer_class = DeliverySerializer
     permission_classes = [IsAuthenticated]
     pagination_class = StandardResultsSetPagination
@@ -347,43 +435,65 @@ class DeliveryViewSet(viewsets.ModelViewSet):
     ordering = ['-created_at']
     
     def get_queryset(self):
+        """Return deliveries filtered by user's role."""
         user = self.request.user
         
         if user.is_supplier:
-            return Delivery.objects.filter(deal__supplier=user.supplier_profile).select_related('deal', 'deal__seller', 'deal__supplier', 'driver_profile')
+            return Delivery.objects.filter(
+                deal__supplier=user.supplier_profile
+            ).select_related('deal', 'deal__seller', 'deal__supplier', 'driver_profile')
         elif user.is_seller:
-            return Delivery.objects.filter(deal__seller=user.seller_profile).select_related('deal', 'deal__seller', 'deal__supplier', 'driver_profile')
+            return Delivery.objects.filter(
+                deal__seller=user.seller_profile
+            ).select_related('deal', 'deal__seller', 'deal__supplier', 'driver_profile')
         elif user.is_driver:
-            return Delivery.objects.filter(driver_profile=user.driver_profile).select_related('deal', 'deal__seller', 'deal__supplier', 'driver_profile')
+            return Delivery.objects.filter(
+                driver_profile=user.driver_profile
+            ).select_related('deal', 'deal__seller', 'deal__supplier', 'driver_profile')
         else:
             return Delivery.objects.none()
     
     def get_serializer_class(self):
+        """Return appropriate serializer based on action."""
         if self.action == 'create':
             return DeliveryCreateSerializer
         return DeliverySerializer
     
     def perform_create(self, serializer):
-        # Deliveries should be created from deals, not directly
-        # This method should not be called as create is overridden
+        """
+        Prevent direct delivery creation.
+        
+        Deliveries should be created from deals, not directly.
+        This method should not be called as create is overridden.
+        """
         pass
     
     def list(self, request, *args, **kwargs):
+        """List user's deliveries."""
         response = super().list(request, *args, **kwargs)
         return success_response(data=response.data, message='Deliveries listed successfully')
     
     def create(self, request, *args, **kwargs):
-        # Deliveries should be created from deals, not directly
+        """
+        Prevent direct delivery creation.
+        
+        Deliveries must be created from deals. Please complete a deal first.
+        """
         from rest_framework.exceptions import PermissionDenied
         raise PermissionDenied('Deliveries must be created from deals. Please complete a deal first.')
     
     def retrieve(self, request, *args, **kwargs):
+        """Retrieve delivery detail."""
         response = super().retrieve(request, *args, **kwargs)
         return success_response(data=response.data, message='Delivery detail')
     
     @action(detail=True, methods=['put'], permission_classes=[IsAuthenticated])
     def update_status(self, request, pk=None):
-        """Update delivery status - Supplier or Driver"""
+        """
+        Update delivery status.
+        
+        Only supplier or driver who are part of the delivery can update status.
+        """
         delivery = self.get_object()
         user = request.user
         
@@ -420,7 +530,12 @@ class DeliveryViewSet(viewsets.ModelViewSet):
     
     @action(detail=True, methods=['put'], permission_classes=[IsAuthenticated, IsSupplier])
     def assign_driver(self, request, pk=None):
-        """Assign driver to delivery - Only supplier can do this"""
+        """
+        Assign driver to delivery.
+        
+        Only supplier who owns the delivery can assign a driver.
+        Sets delivery status to READY after assignment.
+        """
         delivery = self.get_object()
         
         # Supplier check
@@ -451,8 +566,14 @@ class DeliveryViewSet(viewsets.ModelViewSet):
 
 # ==================== DISCOVERY VIEWS ====================
 
+
 class SupplierListView(generics.ListAPIView):
-    """List all active suppliers - Sellers can view"""
+    """
+    Supplier discovery endpoint.
+    
+    GET /api/orders/suppliers/ - List all active suppliers with product counts
+    Accessible by authenticated users (typically sellers looking for suppliers).
+    """
     queryset = SupplierProfile.objects.filter(is_active=True).select_related('user')
     permission_classes = [IsAuthenticated]
     pagination_class = StandardResultsSetPagination
@@ -461,6 +582,7 @@ class SupplierListView(generics.ListAPIView):
     search_fields = ['company_name', 'description']
     
     def list(self, request, *args, **kwargs):
+        """List suppliers with product counts."""
         queryset = self.filter_queryset(self.get_queryset())
         page = self.paginate_queryset(queryset)
         
@@ -490,14 +612,23 @@ class SupplierListView(generics.ListAPIView):
 
 
 class DriverListView(generics.ListAPIView):
-    """List available drivers - Suppliers can view"""
-    queryset = DriverProfile.objects.filter(is_active=True, is_available=True).select_related('user')
+    """
+    Driver discovery endpoint.
+    
+    GET /api/orders/drivers/ - List all available drivers
+    Accessible by suppliers looking for drivers.
+    """
+    queryset = DriverProfile.objects.filter(
+        is_active=True, 
+        is_available=True
+    ).select_related('user')
     permission_classes = [IsAuthenticated, IsSupplier]
     pagination_class = StandardResultsSetPagination
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['city', 'vehicle_type']
     
     def list(self, request, *args, **kwargs):
+        """List available drivers with their details."""
         queryset = self.filter_queryset(self.get_queryset())
         page = self.paginate_queryset(queryset)
         
@@ -531,7 +662,13 @@ class DriverListView(generics.ListAPIView):
 
 
 class AvailableDeliveryListView(generics.ListAPIView):
-    """Available deliveries for drivers"""
+    """
+    Available deliveries for drivers.
+    
+    GET /api/orders/available-orders/ - List deliveries ready for driver acceptance
+    Shows deliveries without assigned driver and READY status.
+    Filtered by driver's city if available.
+    """
     serializer_class = DeliverySerializer
     permission_classes = [IsAuthenticated, IsDriver]
     pagination_class = StandardResultsSetPagination
@@ -540,6 +677,7 @@ class AvailableDeliveryListView(generics.ListAPIView):
     ordering = ['-created_at']
     
     def get_queryset(self):
+        """Return deliveries available for driver acceptance."""
         # Deliveries without driver and ready status
         deliveries = Delivery.objects.filter(
             driver_profile__isnull=True,
@@ -551,22 +689,30 @@ class AvailableDeliveryListView(generics.ListAPIView):
         driver_city = self.request.user.driver_profile.city
         if driver_city:
             deliveries = deliveries.filter(
-                Q(deal__seller__city__icontains=driver_city) | Q(deal__supplier__city__icontains=driver_city)
+                Q(deal__seller__city__icontains=driver_city) | 
+                Q(deal__supplier__city__icontains=driver_city)
             )
         
         return deliveries
     
     def list(self, request, *args, **kwargs):
+        """List available deliveries for driver acceptance."""
         response = super().list(request, *args, **kwargs)
         return success_response(data=response.data, message='Available deliveries listed successfully')
 
 
 class AcceptDeliveryView(generics.UpdateAPIView):
-    """Driver accepts delivery"""
+    """
+    Driver delivery acceptance endpoint.
+    
+    PUT /api/orders/accept-order/{id}/ - Driver accepts an available delivery
+    Sets delivery status to PICKED_UP and assigns driver to delivery.
+    """
     serializer_class = DeliverySerializer
     permission_classes = [IsAuthenticated, IsDriver]
     
     def get_queryset(self):
+        """Return deliveries available for acceptance."""
         return Delivery.objects.filter(
             driver_profile__isnull=True,
             driver_name__isnull=True,
@@ -574,6 +720,7 @@ class AcceptDeliveryView(generics.UpdateAPIView):
         )
     
     def update(self, request, *args, **kwargs):
+        """Accept delivery and assign driver."""
         delivery = self.get_object()
         delivery.driver_profile = request.user.driver_profile
         # Manual fields should be None when using system driver
@@ -589,4 +736,233 @@ class AcceptDeliveryView(generics.UpdateAPIView):
         return success_response(
             data=serializer.data,
             message='Delivery accepted successfully'
+        )
+
+
+# ==================== REQUEST TO DRIVER VIEWS ====================
+
+
+class RequestToDriverViewSet(viewsets.ModelViewSet):
+    """
+    Driver request management ViewSet.
+    
+    Manages driver requests for deals with LOOKING_FOR_DRIVER status:
+    - GET /api/orders/driver-requests/ - List driver requests (filtered by role)
+    - GET /api/orders/driver-requests/{id}/ - Retrieve request detail
+    - PUT /api/orders/driver-requests/{id}/propose_price/ - Driver proposes price
+    - PUT /api/orders/driver-requests/{id}/approve/ - Approve request (supplier/seller/driver)
+    - PUT /api/orders/driver-requests/{id}/reject/ - Reject request
+    
+    All 3 parties (supplier, seller, driver) must approve for request to be accepted.
+    """
+    serializer_class = RequestToDriverSerializer
+    permission_classes = [IsAuthenticated]
+    pagination_class = StandardResultsSetPagination
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
+    filterset_fields = ['status', 'deal', 'driver']
+    ordering_fields = ['created_at', 'requested_price']
+    ordering = ['-created_at']
+    
+    def get_queryset(self):
+        """Return requests filtered by user's role."""
+        user = self.request.user
+        
+        # Drivers can see requests sent to them
+        if user.is_driver:
+            return RequestToDriver.objects.filter(
+                driver=user.driver_profile,
+                deal__delivery_handler=Deal.DeliveryHandler.SYSTEM_DRIVER
+            ).select_related('deal', 'driver')
+        
+        # Suppliers can see requests for their deals
+        if user.is_supplier:
+            return RequestToDriver.objects.filter(
+                deal__supplier=user.supplier_profile,
+                deal__delivery_handler=Deal.DeliveryHandler.SYSTEM_DRIVER
+            ).select_related('deal', 'driver')
+        
+        # Sellers can see requests for their deals
+        if user.is_seller:
+            return RequestToDriver.objects.filter(
+                deal__seller=user.seller_profile,
+                deal__delivery_handler=Deal.DeliveryHandler.SYSTEM_DRIVER
+            ).select_related('deal', 'driver')
+        
+        return RequestToDriver.objects.none()
+    
+    def get_serializer_class(self):
+        """Return appropriate serializer based on action."""
+        if self.action == 'propose_price':
+            return RequestToDriverProposePriceSerializer
+        elif self.action in ['approve', 'reject']:
+            return RequestToDriverApproveSerializer
+        return RequestToDriverSerializer
+    
+    def list(self, request, *args, **kwargs):
+        """List driver requests."""
+        response = super().list(request, *args, **kwargs)
+        return success_response(data=response.data, message='Driver requests listed successfully')
+    
+    def retrieve(self, request, *args, **kwargs):
+        """Retrieve driver request detail."""
+        response = super().retrieve(request, *args, **kwargs)
+        return success_response(data=response.data, message='Driver request detail')
+    
+    @action(detail=True, methods=['put'], permission_classes=[IsAuthenticated])
+    def propose_price(self, request, pk=None):
+        """
+        Driver proposes a price (counter offer).
+        
+        Only the requested driver can propose a price.
+        Available when request status is PENDING or COUNTER_OFFERED.
+        """
+        driver_request = self.get_object()
+        user = request.user
+        
+        # Only driver can propose price
+        if not user.is_driver or driver_request.driver != user.driver_profile:
+            return error_response(
+                message='Only the requested driver can propose a price',
+                status_code=status.HTTP_403_FORBIDDEN
+            )
+        
+        # Check status
+        if driver_request.status not in [
+            RequestToDriver.Status.PENDING, 
+            RequestToDriver.Status.COUNTER_OFFERED
+        ]:
+            return error_response(
+                message='Can only propose price for pending or counter-offered requests',
+                status_code=status.HTTP_400_BAD_REQUEST
+            )
+        
+        serializer = RequestToDriverProposePriceSerializer(data=request.data)
+        if serializer.is_valid():
+            driver_request.driver_proposed_price = serializer.validated_data['proposed_price']
+            driver_request.status = RequestToDriver.Status.DRIVER_PROPOSED
+            driver_request.save()
+            
+            return success_response(
+                data=RequestToDriverSerializer(driver_request).data,
+                message='Price proposed successfully'
+            )
+        return error_response(message='Price proposal failed', errors=serializer.errors)
+    
+    @action(detail=True, methods=['put'], permission_classes=[IsAuthenticated])
+    def approve(self, request, pk=None):
+        """
+        Approve driver request.
+        
+        All 3 parties (supplier, seller, driver) must approve for request to be accepted.
+        When fully approved, driver is automatically assigned to the deal.
+        """
+        driver_request = self.get_object()
+        user = request.user
+        
+        # Refresh request from DB to ensure we have latest data (especially deal relationship)
+        driver_request.refresh_from_db()
+        
+        # Check if user can approve
+        if not driver_request.can_approve(user):
+            return error_response(
+                message='You are not authorized to approve this request',
+                status_code=status.HTTP_403_FORBIDDEN
+            )
+        
+        # Check status
+        if driver_request.status not in [
+            RequestToDriver.Status.PENDING, 
+            RequestToDriver.Status.DRIVER_PROPOSED
+        ]:
+            return error_response(
+                message='Can only approve pending or driver-proposed requests',
+                status_code=status.HTTP_400_BAD_REQUEST
+            )
+        
+        serializer = RequestToDriverApproveSerializer(data=request.data)
+        if serializer.is_valid():
+            final_price = serializer.validated_data.get('final_price')
+            
+            # Set approval based on user role
+            # Note: can_approve() already verified user has permission, so we can safely set the flag
+            if user.is_supplier:
+                driver_request.supplier_approved = True
+            elif user.is_seller:
+                driver_request.seller_approved = True
+            elif user.is_driver:
+                driver_request.driver_approved = True
+            else:
+                # This shouldn't happen if can_approve() is working correctly
+                return error_response(
+                    message='Invalid user role for approval',
+                    status_code=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Save the approval - save all fields to ensure approval flags are persisted
+            driver_request.save()
+            
+            # Check if fully approved (all 3 parties), then accept
+            # Note: is_fully_approved() will get fresh deal from DB, so no need to refresh here
+            if driver_request.is_fully_approved():
+                try:
+                    # Use final_price if provided, otherwise use driver_proposed_price or requested_price
+                    if not final_price:
+                        final_price = driver_request.driver_proposed_price or driver_request.requested_price
+                    driver_request.accept(final_price)
+                    return success_response(
+                        data=RequestToDriverSerializer(driver_request).data,
+                        message='Request approved by all parties and driver assigned to deal successfully'
+                    )
+                except ValueError as e:
+                    return error_response(
+                        message=str(e),
+                        status_code=status.HTTP_400_BAD_REQUEST
+                    )
+            else:
+                # Check who still needs to approve
+                pending_approvals = []
+                if not driver_request.supplier_approved:
+                    pending_approvals.append('supplier')
+                if not driver_request.seller_approved:
+                    pending_approvals.append('seller')
+                if not driver_request.driver_approved:
+                    pending_approvals.append('driver')
+                
+                return success_response(
+                    data=RequestToDriverSerializer(driver_request).data,
+                    message=f'Request approved. Waiting for approval from: {", ".join(pending_approvals)}.'
+                )
+        return error_response(message='Approval failed', errors=serializer.errors)
+    
+    @action(detail=True, methods=['put'], permission_classes=[IsAuthenticated])
+    def reject(self, request, pk=None):
+        """
+        Reject driver request.
+        
+        Driver, Supplier, or Seller who are part of the request can reject it.
+        """
+        driver_request = self.get_object()
+        user = request.user
+        
+        # Check if user can reject
+        can_reject = False
+        if user.is_driver and driver_request.driver == user.driver_profile:
+            can_reject = True
+        elif user.is_supplier and driver_request.deal.supplier == user.supplier_profile:
+            can_reject = True
+        elif user.is_seller and driver_request.deal.seller == user.seller_profile:
+            can_reject = True
+        
+        if not can_reject:
+            return error_response(
+                message='You are not authorized to reject this request',
+                status_code=status.HTTP_403_FORBIDDEN
+            )
+        
+        driver_request.status = RequestToDriver.Status.REJECTED
+        driver_request.save()
+        
+        return success_response(
+            data=RequestToDriverSerializer(driver_request).data,
+            message='Request rejected successfully'
         )

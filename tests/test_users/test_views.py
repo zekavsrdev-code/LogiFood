@@ -102,7 +102,7 @@ class TestChangePassword:
             'new_password': 'newpass123',
             'new_password2': 'newpass123',
         }
-        response = authenticated_client.post('/api/auth/change-password/', data, format='json')
+        response = authenticated_client.put('/api/auth/change-password/', data, format='json')
         assert response.status_code == status.HTTP_200_OK
         assert response.data['success'] is True
         # Verify password was changed
@@ -116,5 +116,5 @@ class TestChangePassword:
             'new_password': 'newpass123',
             'new_password2': 'newpass123',
         }
-        response = authenticated_client.post('/api/auth/change-password/', data, format='json')
+        response = authenticated_client.put('/api/auth/change-password/', data, format='json')
         assert response.status_code == status.HTTP_400_BAD_REQUEST

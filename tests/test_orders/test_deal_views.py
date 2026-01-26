@@ -103,7 +103,7 @@ class TestDealViews:
         deal.driver = None
         deal.save()
         
-        data = {'driver_id': driver_user.driver_profile.id}
+        data = {'driver_id': driver_user.driver_profile.id, 'requested_price': '150.00'}
         response = seller_client.put(
             f'/api/orders/deals/{deal.id}/assign_driver/',
             data,
@@ -126,17 +126,16 @@ class TestDealViews:
         driver_user.driver_profile.is_available = True
         driver_user.driver_profile.save()
         
-        data = {'driver_id': driver_user.driver_profile.id}
+        data = {'driver_id': driver_user.driver_profile.id, 'requested_price': '150.00'}
         response = seller_client.put(
             f'/api/orders/deals/{deal.id}/request_driver/',
             data,
             format='json'
         )
-        assert response.status_code == status.HTTP_200_OK
+        assert response.status_code == status.HTTP_201_CREATED
         assert response.data['success'] is True
-        deal.refresh_from_db()
-        assert deal.driver == driver_user.driver_profile
-        assert deal.status == Deal.Status.DEALING
+        # Note: Driver is not directly assigned, a RequestToDriver is created instead
+        # The deal status should remain LOOKING_FOR_DRIVER until all parties approve
     
     def test_request_driver_for_3rd_party_deal(self, seller_client, deal, driver_user):
         """Test requesting driver for 3rd party deal (should fail)"""
@@ -149,7 +148,7 @@ class TestDealViews:
         driver_user.driver_profile.is_available = True
         driver_user.driver_profile.save()
         
-        data = {'driver_id': driver_user.driver_profile.id}
+        data = {'driver_id': driver_user.driver_profile.id, 'requested_price': '150.00'}
         response = seller_client.put(
             f'/api/orders/deals/{deal.id}/request_driver/',
             data,
