@@ -351,7 +351,8 @@ class TestRequestToDriverModel:
         other_user = User.objects.create_user(
             username='other_user',
             email='other@example.com',
-            password='testpass123'
+            password='testpass123',
+            role=User.Role.SELLER,
         )
         
         request = RequestToDriver.objects.create(

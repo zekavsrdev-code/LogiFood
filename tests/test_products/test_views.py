@@ -160,9 +160,8 @@ class TestSupplierProductViews:
         product.refresh_from_db()
         assert product.is_active is False
     
-    def test_supplier_cannot_access_other_supplier_product(self, supplier_user, seller_user, category):
+    def test_supplier_cannot_access_other_supplier_product(self, supplier_client, supplier_user, category):
         """Test supplier cannot access another supplier's product"""
-        # Create another supplier
         other_supplier = User.objects.create_user(
             username='other_supplier',
             password='pass123',
@@ -174,13 +173,7 @@ class TestSupplierProductViews:
             name='Other Product',
             price=Decimal('100.00')
         )
-        
-        # Try to access with first supplier
-        api_client = supplier_user.api_client if hasattr(supplier_user, 'api_client') else None
-        from rest_framework.test import APIClient
-        client = APIClient()
-        client.force_authenticate(user=supplier_user)
-        response = client.get(f'/api/products/my-products/{other_product.id}/')
+        response = supplier_client.get(f'/api/products/my-products/{other_product.id}/')
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
 

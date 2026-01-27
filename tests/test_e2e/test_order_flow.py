@@ -15,6 +15,14 @@ def _get_list_data(response, key='data'):
     return raw.get('results', raw) if isinstance(raw, dict) else (raw or [])
 
 
+def _deal_id_from_item(item):
+    """Extract deal id from a request list item. API may return deal as int (PK) or dict."""
+    d = item.get('deal')
+    if d is None:
+        return None
+    return d.get('id') if isinstance(d, dict) else d
+
+
 @pytest.mark.django_db
 @pytest.mark.e2e
 class TestOrderFlowE2E:
@@ -187,7 +195,7 @@ class TestOrderFlowE2E:
         assert req_list_resp.status_code == status.HTTP_200_OK
         requests_list = _get_list_data(req_list_resp)
         assert len(requests_list) >= 1
-        request_id = next(r['id'] for r in requests_list if r.get('deal') == deal_id)
+        request_id = next(r['id'] for r in requests_list if _deal_id_from_item(r) == deal_id)
 
         # 6. Driver proposes price
         propose_resp = driver_client.put(

@@ -390,6 +390,3 @@ class TestRequestToDriverService:
         with pytest.raises(BusinessLogicError) as exc:
             RequestToDriverService.reject_request(request, other_user)
         assert exc.value.status_code == status.HTTP_403_FORBIDDEN
-
-
-# Profile list (suppliers/drivers/sellers) under users: UserService.list_profiles + GET /api/users/profiles/?role=

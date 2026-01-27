@@ -76,49 +76,54 @@ class TestDealSerializer:
 
 @pytest.mark.django_db
 class TestDealCreateSerializer:
-    """Test DealCreateSerializer"""
-    
-    def test_deal_create_serializer_as_seller(self, seller_client, supplier_user, product):
+    """Test DealCreateSerializer (unit: serializer instance, no HTTP)."""
+
+    def _request_with_user(self, user):
+        return type('Request', (object,), {'user': user})()
+
+    def test_deal_create_serializer_valid_delivery_cost_split(self, seller_user, supplier_user, product):
         data = {
             'supplier_id': supplier_user.supplier_profile.id,
             'delivery_handler': Deal.DeliveryHandler.SYSTEM_DRIVER,
             'delivery_cost_split': 60,
-            'items': [
-                {'product_id': product.id, 'quantity': 2}
-            ]
+            'items': [{'product_id': product.id, 'quantity': 2}],
         }
-        response = seller_client.post('/api/orders/deals/', data, format='json')
-        assert response.status_code == 201
-        assert response.data['success'] is True
-        deal_data = response.data['data']
-        assert deal_data['delivery_cost_split'] == 60
-    
-    def test_deal_create_serializer_default_delivery_cost_split(self, seller_client, supplier_user, product):
+        ser = DealCreateSerializer(
+            data=data,
+            context={'request': self._request_with_user(seller_user)},
+        )
+        assert ser.is_valid(), ser.errors
+        deal = ser.save()
+        assert deal.delivery_cost_split == 60
+
+    def test_deal_create_serializer_default_delivery_cost_split(self, seller_user, supplier_user, product):
         data = {
             'supplier_id': supplier_user.supplier_profile.id,
             'delivery_handler': Deal.DeliveryHandler.SYSTEM_DRIVER,
-            'items': [
-                {'product_id': product.id, 'quantity': 2}
-            ]
+            'items': [{'product_id': product.id, 'quantity': 2}],
         }
-        response = seller_client.post('/api/orders/deals/', data, format='json')
-        assert response.status_code == 201
-        deal_data = response.data['data']
-        assert deal_data['delivery_cost_split'] == 50
-    
-    def test_deal_create_serializer_delivery_cost_split_with_3rd_party(self, seller_client, supplier_user, product):
+        ser = DealCreateSerializer(
+            data=data,
+            context={'request': self._request_with_user(seller_user)},
+        )
+        assert ser.is_valid(), ser.errors
+        deal = ser.save()
+        assert deal.delivery_cost_split == 50
+
+    def test_deal_create_serializer_3rd_party_ignores_delivery_cost_split(self, seller_user, supplier_user, product):
         data = {
             'supplier_id': supplier_user.supplier_profile.id,
             'delivery_handler': Deal.DeliveryHandler.SELLER,
             'delivery_cost_split': 80,
-            'items': [
-                {'product_id': product.id, 'quantity': 2}
-            ]
+            'items': [{'product_id': product.id, 'quantity': 2}],
         }
-        response = seller_client.post('/api/orders/deals/', data, format='json')
-        assert response.status_code == 201
-        deal_data = response.data['data']
-        assert deal_data['delivery_cost_split'] == 50
+        ser = DealCreateSerializer(
+            data=data,
+            context={'request': self._request_with_user(seller_user)},
+        )
+        assert ser.is_valid(), ser.errors
+        deal = ser.save()
+        assert deal.delivery_cost_split == 50
 
 
 @pytest.mark.django_db

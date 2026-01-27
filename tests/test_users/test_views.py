@@ -2,12 +2,12 @@
 Tests for User views
 """
 import pytest
-
-pytestmark = pytest.mark.integration
 from django.contrib.auth import get_user_model
 from rest_framework import status
 
 User = get_user_model()
+
+pytestmark = pytest.mark.integration
 
 
 @pytest.mark.django_db
