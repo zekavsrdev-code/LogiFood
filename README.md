@@ -1,12 +1,12 @@
 # LogiFood - Professional Django REST API
 
-Tedarikçi (Supplier), Satıcı (Seller) ve Sürücü (Driver) rollerinin birbirini bulmasını sağlayan profesyonel bir lojistik ve ürün satış platformu.
+A professional logistics and product sales platform that enables Suppliers, Sellers, and Drivers to discover and work with each other.
 
-## Sistem Özeti
+## System Overview
 
-- **Tedarikçi (Supplier)**: Ürünleri sisteme ekler ve satışa sunar
-- **Satıcı (Seller)**: Tedarikçilerden ürün sipariş eder
-- **Sürücü (Driver)**: Siparişleri teslim eder
+- **Supplier**: Adds products to the system and offers them for sale
+- **Seller**: Places orders for products from suppliers
+- **Driver**: Delivers orders
 
 ## 🏗️ Project Structure
 
@@ -198,11 +198,6 @@ Once the server is running, access the API documentation:
 
 This project follows a **layered architecture pattern** (also known as **n-tier architecture**), which separates concerns into distinct layers. This approach provides:
 
-- **Separation of Concerns**: Each layer has a single, well-defined responsibility
-- **Maintainability**: Changes in one layer don't affect others
-- **Testability**: Each layer can be tested independently
-- **Scalability**: Easy to add new features or modify existing ones
-- **SOLID Principles**: Adheres to Single Responsibility and Dependency Inversion principles
 
 ### Architecture Layers
 
@@ -445,65 +440,65 @@ Django ORM provides several optimization techniques used in this project:
 
 ## 🔐 Authentication
 
-Proje JWT (JSON Web Tokens) ile kimlik doğrulama kullanır. **Email zorunlu değildir, username ile login yapılır.**
+The project uses JWT (JSON Web Tokens) for authentication. **Email is optional; login is done with username.**
 
-### Tedarikçi Kaydı (Supplier):
+### Supplier Registration:
 ```bash
 POST /api/auth/register/
 {
-    "username": "tedarikci1",
+    "username": "supplier1",
     "password": "securepassword123",
     "password2": "securepassword123",
     "role": "SUPPLIER",
-    "company_name": "ABC Gıda Ltd.",
-    "phone_number": "05551234567",
-    "city": "İstanbul",
-    "address": "Ataşehir, İstanbul"
+    "company_name": "ABC Food Ltd.",
+    "phone_number": "+15551234567",
+    "city": "New York",
+    "address": "123 Main St, New York"
 }
 ```
 
-### Satıcı Kaydı (Seller):
+### Seller Registration:
 ```bash
 POST /api/auth/register/
 {
-    "username": "satici1",
+    "username": "seller1",
     "password": "securepassword123",
     "password2": "securepassword123",
     "role": "SELLER",
-    "business_name": "Merkez Market",
+    "business_name": "Central Market",
     "business_type": "Market",
-    "phone_number": "05559876543",
-    "city": "Ankara",
-    "address": "Çankaya, Ankara"
+    "phone_number": "+15559876543",
+    "city": "Boston",
+    "address": "456 Oak Ave, Boston"
 }
 ```
 
-### Sürücü Kaydı (Driver):
+### Driver Registration:
 ```bash
 POST /api/auth/register/
 {
-    "username": "surucu1",
+    "username": "driver1",
     "password": "securepassword123",
     "password2": "securepassword123",
     "role": "DRIVER",
     "license_number": "34ABC123",
     "vehicle_type": "VAN",
     "vehicle_plate": "34 ABC 123",
-    "phone_number": "05557654321",
-    "city": "İstanbul"
+    "phone_number": "+15557654321",
+    "city": "New York"
 }
 ```
 
-### Login (Username ile):
+### Login (with username):
 ```bash
 POST /api/auth/login/
 {
-    "username": "tedarikci1",
+    "username": "supplier1",
     "password": "securepassword123"
 }
 ```
 
-### Access protected endpoints:
+### Accessing protected endpoints:
 Include the JWT token in the Authorization header:
 ```
 Authorization: Bearer <access_token>
@@ -512,44 +507,44 @@ Authorization: Bearer <access_token>
 ## 📦 API Endpoints
 
 ### Auth Endpoints
-| Method | URL | Açıklama |
-|--------|-----|----------|
-| POST | `/api/auth/register/` | Kullanıcı kaydı (rol bazlı) |
-| POST | `/api/auth/login/` | Giriş (username ile) |
-| POST | `/api/auth/logout/` | Çıkış |
-| GET/PUT | `/api/auth/profile/` | Profil görüntüle/güncelle |
-| GET/PUT | `/api/auth/profile/role/` | Rol profili görüntüle/güncelle |
-| POST | `/api/auth/change-password/` | Şifre değiştir |
-| PUT | `/api/auth/toggle-availability/` | Sürücü müsaitlik durumu |
+| Method | URL | Description |
+|--------|-----|-------------|
+| POST | `/api/auth/register/` | User registration (role-based) |
+| POST | `/api/auth/login/` | Login (with username) |
+| POST | `/api/auth/logout/` | Logout |
+| GET/PUT | `/api/auth/profile/` | View/update profile |
+| GET/PUT | `/api/auth/profile/role/` | View/update role profile |
+| POST | `/api/auth/change-password/` | Change password |
+| PUT | `/api/auth/toggle-availability/` | Driver availability toggle |
 
 ### Product Endpoints
-| Method | URL | Açıklama |
-|--------|-----|----------|
-| GET | `/api/products/` | Tüm ürünleri listele |
-| GET | `/api/products/<id>/` | Ürün detayı |
-| GET/POST | `/api/my-products/` | Tedarikçi ürünleri (kendi) |
-| GET/PUT/DELETE | `/api/my-products/<id>/` | Tedarikçi ürün yönetimi |
+| Method | URL | Description |
+|--------|-----|-------------|
+| GET | `/api/products/` | List all products |
+| GET | `/api/products/<id>/` | Product detail |
+| GET/POST | `/api/my-products/` | Supplier products (own) |
+| GET/PUT/DELETE | `/api/my-products/<id>/` | Supplier product management |
 
 ### Order Endpoints
-| Method | URL | Açıklama |
-|--------|-----|----------|
-| GET/POST | `/api/orders/` | Siparişler (rol bazlı) |
-| GET | `/api/orders/<id>/` | Sipariş detayı |
-| PUT | `/api/orders/<id>/status/` | Sipariş durumu güncelle |
-| PUT | `/api/orders/<id>/assign-driver/` | Sürücü ata |
+| Method | URL | Description |
+|--------|-----|-------------|
+| GET/POST | `/api/orders/` | Orders (role-based) |
+| GET | `/api/orders/<id>/` | Order detail |
+| PUT | `/api/orders/<id>/status/` | Update order status |
+| PUT | `/api/orders/<id>/assign-driver/` | Assign driver |
 
-### Discovery Endpoints (Birbirini Bulma)
-| Method | URL | Açıklama |
-|--------|-----|----------|
-| GET | `/api/suppliers/` | Tedarikçileri listele |
-| GET | `/api/drivers/` | Müsait sürücüleri listele |
-| GET | `/api/available-orders/` | Sürücüler için müsait siparişler |
-| POST | `/api/accept-order/<id>/` | Sürücü sipariş kabul |
+### Discovery Endpoints
+| Method | URL | Description |
+|--------|-----|-------------|
+| GET | `/api/suppliers/` | List suppliers |
+| GET | `/api/drivers/` | List available drivers |
+| GET | `/api/available-orders/` | Available orders for drivers |
+| POST | `/api/accept-order/<id>/` | Driver accept order |
 
 ### Category Endpoints
-| Method | URL | Açıklama |
-|--------|-----|----------|
-| GET | `/api/categories/` | Kategorileri listele |
+| Method | URL | Description |
+|--------|-----|-------------|
+| GET | `/api/categories/` | List categories |
 
 ## 🧪 Testing Strategy
 
@@ -685,15 +680,6 @@ Coverage is maintained through:
 - Integration tests for all API endpoints
 - Edge case testing for business logic
 - Error handling and validation testing
-
-### Testing Best Practices
-
-1. **Isolation**: Each test is independent and can run in any order
-2. **Fixtures**: Reusable test data through pytest fixtures
-3. **Database**: Tests use `@pytest.mark.django_db` for database access
-4. **Mocking**: External dependencies are mocked when necessary
-5. **Clear Assertions**: Tests have descriptive names and clear assertions
-6. **Fast Execution**: Tests run quickly to enable frequent execution during development
 
 ## 📦 Key Features
 
