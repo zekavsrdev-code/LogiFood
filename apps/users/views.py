@@ -313,11 +313,6 @@ class ProfileListAPIView(generics.ListAPIView):
                 message=f"Query param 'role' is required and must be one of: {', '.join(role_values)}",
                 status_code=status.HTTP_400_BAD_REQUEST,
             )
-        if role == User.Role.DRIVER and not request.user.is_supplier:
-            return error_response(
-                message="Only suppliers can list drivers.",
-                status_code=status.HTTP_403_FORBIDDEN,
-            )
         response = super().list(request, *args, **kwargs)
         return success_response(data=response.data, message="Profiles listed successfully")
 
