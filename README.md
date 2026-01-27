@@ -184,6 +184,43 @@ python manage.py runserver
 
 The API will be available at `http://localhost:8000/`
 
+### 🐳 Running with Docker
+
+The project runs with Docker Compose (PostgreSQL, Redis, Django):
+
+1. Ensure Docker and Docker Compose are installed.
+
+2. Copy environment and set credentials (optional; defaults work with `.env.example`):
+   ```bash
+   cp .env.example .env
+   # Edit .env: DB_PASSWORD, SECRET_KEY, JWT_SECRET_KEY, etc.
+   ```
+
+3. Start all services:
+   ```bash
+   docker compose up --build
+   ```
+
+4. The API runs at `http://localhost:8000/`. Migrations run on startup.
+
+5. **Dev data (categories + sample users/products/deals):** set `LOAD_DEV_DATA=1` in `.env` (or run once):
+   ```bash
+   docker compose exec web python manage.py load_dev_data
+   ```
+   With `LOAD_DEV_DATA=1`, the entrypoint runs `load_dev_data` after migrate so the stack starts with categories and sample data. Sample users’ password: `sample123`.
+
+6. Optional commands:
+   ```bash
+   docker compose up -d           # Run in background
+   docker compose exec web python manage.py load_dev_data --reset  # Wipe and reload dev data
+   docker compose exec web python manage.py createsuperuser
+   docker compose exec web pytest -m unit
+   docker compose down           # Stop and remove containers
+   docker compose down -v        # Also remove volumes (DB data)
+   ```
+
+The `web` service uses `DB_HOST=db` and `REDIS_URL=redis://redis:6379/1` via `docker-compose.yml`; your `.env` still provides `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `SECRET_KEY`, etc.
+
 ## 📚 API Documentation
 
 Once the server is running, access the API documentation:
