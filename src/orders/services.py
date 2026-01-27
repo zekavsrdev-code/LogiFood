@@ -557,7 +557,7 @@ class DiscoveryService:
         queryset = SupplierProfile.objects.filter(is_active=True).select_related('user')
         
         if filters:
-            if 'city' in filters:
+            if 'city' in filters and filters['city']:
                 queryset = queryset.filter(city__icontains=filters['city'])
             if 'search' in filters:
                 queryset = queryset.filter(
@@ -586,7 +586,7 @@ class DiscoveryService:
         ).select_related('user')
         
         if filters:
-            if 'city' in filters:
+            if 'city' in filters and filters['city']:
                 queryset = queryset.filter(city__icontains=filters['city'])
             if 'vehicle_type' in filters:
                 queryset = queryset.filter(vehicle_type=filters['vehicle_type'])
