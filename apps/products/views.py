@@ -2,7 +2,9 @@
 from rest_framework import status, viewsets, generics, filters
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from django_filters.rest_framework import DjangoFilterBackend
+from drf_spectacular.utils import extend_schema
 
+from apps.core.schema import openapi_parameters_from_filterset
 from .filters import ProductListFilter, SupplierProductFilter
 from .models import Category, Product
 from .serializers import (
@@ -47,6 +49,7 @@ class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
 # ==================== PRODUCT VIEWS ====================
 
 
+@extend_schema(parameters=openapi_parameters_from_filterset(ProductListFilter))
 class ProductListView(generics.ListAPIView):
     """Product list endpoint - Public access. Filters via ProductListFilter (core BaseModelFilterSet)."""
     serializer_class = ProductSerializer
@@ -136,15 +139,16 @@ class SupplierProductViewSet(viewsets.ModelViewSet):
         except BusinessLogicError as e:
             from rest_framework.exceptions import ValidationError
             raise ValidationError(str(e.detail))
-    
+
     def perform_destroy(self, instance):
         instance.is_active = False
         instance.save()
-    
+
+    @extend_schema(parameters=openapi_parameters_from_filterset(SupplierProductFilter))
     def list(self, request, *args, **kwargs):
         response = super().list(request, *args, **kwargs)
         return success_response(data=response.data, message='Your products listed successfully')
-    
+
     def create(self, request, *args, **kwargs):
         response = super().create(request, *args, **kwargs)
         return success_response(

@@ -4,7 +4,9 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from django.db.models import Q
 from django_filters.rest_framework import DjangoFilterBackend
+from drf_spectacular.utils import extend_schema
 
+from apps.core.schema import openapi_parameters_from_filterset
 from .models import Deal, Delivery, DeliveryItem, RequestToDriver
 from .serializers import (
     DealSerializer,
@@ -64,11 +66,12 @@ class DealViewSet(viewsets.ModelViewSet):
         if self.action == 'create':
             return DealCreateSerializer
         return DealSerializer
-    
+
+    @extend_schema(parameters=openapi_parameters_from_filterset(DealFilter))
     def list(self, request, *args, **kwargs):
         response = super().list(request, *args, **kwargs)
         return success_response(data=response.data, message='Deals listed successfully')
-    
+
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -232,11 +235,12 @@ class DeliveryViewSet(viewsets.ModelViewSet):
     
     def perform_create(self, serializer):
         pass
-    
+
+    @extend_schema(parameters=openapi_parameters_from_filterset(DeliveryFilter))
     def list(self, request, *args, **kwargs):
         response = super().list(request, *args, **kwargs)
         return success_response(data=response.data, message='Deliveries listed successfully')
-    
+
     def create(self, request, *args, **kwargs):
         from rest_framework.exceptions import PermissionDenied
         raise PermissionDenied('Deliveries must be created from deals. Please complete a deal first.')
@@ -359,11 +363,12 @@ class RequestToDriverViewSet(viewsets.ModelViewSet):
         elif self.action in ['approve', 'reject']:
             return RequestToDriverApproveSerializer
         return RequestToDriverSerializer
-    
+
+    @extend_schema(parameters=openapi_parameters_from_filterset(RequestToDriverFilter))
     def list(self, request, *args, **kwargs):
         response = super().list(request, *args, **kwargs)
         return success_response(data=response.data, message='Driver requests listed successfully')
-    
+
     def retrieve(self, request, *args, **kwargs):
         response = super().retrieve(request, *args, **kwargs)
         return success_response(data=response.data, message='Driver request detail')

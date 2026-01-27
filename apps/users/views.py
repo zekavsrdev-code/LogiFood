@@ -3,7 +3,9 @@ from rest_framework import status, generics
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
 from django_filters.rest_framework import DjangoFilterBackend
+from drf_spectacular.utils import extend_schema
 
+from apps.core.schema import openapi_parameters_from_filterset
 from .models import User, SupplierProfile, SellerProfile, DriverProfile
 from .serializers import (
     UserRegistrationSerializer,
@@ -20,6 +22,7 @@ from .serializers import (
     ProfileUpdateInputSerializer,
 )
 from .filters import (
+    ProfileListSchemaFilter,
     SupplierProfileListFilter,
     DriverProfileListFilter,
     SellerProfileListFilter,
@@ -292,6 +295,7 @@ class ToggleAvailabilityView(generics.UpdateAPIView):
 # =============================================================================
 
 
+@extend_schema(parameters=openapi_parameters_from_filterset(ProfileListSchemaFilter))
 class ProfileListAPIView(generics.ListAPIView):
     """
     GET /api/users/profiles/?role=SUPPLIER|SELLER|DRIVER.
@@ -359,7 +363,7 @@ class ProfileListAPIView(generics.ListAPIView):
             return DriverProfileListFilter
         if role == User.Role.SELLER:
             return SellerProfileListFilter
-        return None
+        return ProfileListSchemaFilter
 
 
 class ChoicesAPIView(generics.GenericAPIView):
