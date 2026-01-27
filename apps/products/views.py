@@ -3,6 +3,7 @@ from rest_framework import status, viewsets, generics, filters
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from django_filters.rest_framework import DjangoFilterBackend
 
+from .filters import ProductListFilter, SupplierProductFilter
 from .models import Category, Product
 from .serializers import (
     CategorySerializer,
@@ -47,31 +48,17 @@ class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
 
 
 class ProductListView(generics.ListAPIView):
-    """Product list endpoint - Public access"""
-    queryset = Product.objects.filter(is_active=True).select_related('supplier', 'category')
+    """Product list endpoint - Public access. Filters via ProductListFilter (core BaseModelFilterSet)."""
     serializer_class = ProductSerializer
     permission_classes = [AllowAny]
     pagination_class = StandardResultsSetPagination
-    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['category__slug', 'supplier']
-    search_fields = ['name', 'description']
-    ordering_fields = ['price', 'created_at', 'name']
-    ordering = ['-created_at']
-    
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
+    filterset_class = ProductListFilter
+    ordering_fields = ["price", "created_at", "name"]
+    ordering = ["-created_at"]
+
     def get_queryset(self):
-        filters = {}
-        if 'category__slug' in self.request.query_params:
-            filters['category__slug'] = self.request.query_params['category__slug']
-        if 'supplier' in self.request.query_params:
-            filters['supplier'] = self.request.query_params['supplier']
-        if 'min_price' in self.request.query_params:
-            filters['min_price'] = self.request.query_params['min_price']
-        if 'max_price' in self.request.query_params:
-            filters['max_price'] = self.request.query_params['max_price']
-        if 'search' in self.request.query_params:
-            filters['search'] = self.request.query_params['search']
-        
-        return ProductService.get_active_products(filters)
+        return Product.objects.filter(is_active=True).select_related("supplier", "category")
     
     def list(self, request, *args, **kwargs):
         has_filters = any([
@@ -121,16 +108,16 @@ class ProductDetailView(generics.RetrieveAPIView):
 
 
 class SupplierProductViewSet(viewsets.ModelViewSet):
-    """Supplier's product management ViewSet"""
+    """Supplier's product management ViewSet. Filters via SupplierProductFilter (core BaseModelFilterSet)."""
     serializer_class = ProductSerializer
     permission_classes = [IsAuthenticated, IsSupplier]
     pagination_class = StandardResultsSetPagination
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['category', 'is_active']
-    search_fields = ['name', 'description']
-    ordering_fields = ['price', 'created_at', 'name']
-    ordering = ['-created_at']
-    
+    filterset_class = SupplierProductFilter
+    search_fields = ["name", "description"]
+    ordering_fields = ["price", "created_at", "name"]
+    ordering = ["-created_at"]
+
     def get_queryset(self):
         return ProductService.get_supplier_products(self.request.user.supplier_profile)
     

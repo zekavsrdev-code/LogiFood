@@ -2,6 +2,7 @@
 from rest_framework import status, generics
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
+from django_filters.rest_framework import DjangoFilterBackend
 
 from .models import User, SupplierProfile, SellerProfile, DriverProfile
 from .serializers import (
@@ -11,9 +12,17 @@ from .serializers import (
     SupplierProfileSerializer,
     SellerProfileSerializer,
     DriverProfileSerializer,
+    SupplierProfileListSerializer,
+    DriverProfileListSerializer,
+    SellerProfileListSerializer,
     LoginInputSerializer,
     LogoutInputSerializer,
     ProfileUpdateInputSerializer,
+)
+from .filters import (
+    SupplierProfileListFilter,
+    DriverProfileListFilter,
+    SellerProfileListFilter,
 )
 from .services import UserService
 from apps.core.serializers import EmptySerializer
@@ -279,21 +288,25 @@ class ToggleAvailabilityView(generics.UpdateAPIView):
 
 
 # =============================================================================
-# PROFILE LIST + CHOICES (filtre ile: role, city, search, vehicle_type)
+# PROFILE LIST (serializer + FilterSet by role)
 # =============================================================================
 
 
 class ProfileListAPIView(generics.ListAPIView):
-    """GET /api/users/profiles/?role=SUPPLIER|SELLER|DRIVER — filtre ile profil listesi."""
+    """
+    GET /api/users/profiles/?role=SUPPLIER|SELLER|DRIVER.
+    Filters: city, search (SUPPLIER/SELLER), vehicle_type (DRIVER). Driven by serializers/filters.
+    """
     permission_classes = [IsAuthenticated]
     pagination_class = StandardResultsSetPagination
+    filter_backends = [DjangoFilterBackend]
 
     def list(self, request, *args, **kwargs):
-        _role_values = [c[0] for c in User.Role.choices]
         role = (request.query_params.get("role") or "").strip().upper()
-        if role not in _role_values:
+        role_values = [c[0] for c in User.Role.choices]
+        if role not in role_values:
             return error_response(
-                message=f"Query param 'role' is required and must be one of: {', '.join(_role_values)}",
+                message=f"Query param 'role' is required and must be one of: {', '.join(role_values)}",
                 status_code=status.HTTP_400_BAD_REQUEST,
             )
         if role == User.Role.DRIVER and not request.user.is_supplier:
@@ -301,23 +314,56 @@ class ProfileListAPIView(generics.ListAPIView):
                 message="Only suppliers can list drivers.",
                 status_code=status.HTTP_403_FORBIDDEN,
             )
-        filters = {}
-        if request.query_params.get("city"):
-            filters["city"] = request.query_params["city"]
-        if request.query_params.get("search"):
-            filters["search"] = request.query_params["search"]
-        if role == User.Role.DRIVER and request.query_params.get("vehicle_type"):
-            filters["vehicle_type"] = request.query_params["vehicle_type"]
-        data = UserService.list_profiles(role, filters)
-        page = self.paginate_queryset(data)
-        if page is not None:
-            paginated = self.get_paginated_response(page)
-            return success_response(data=paginated.data, message="Profiles listed successfully")
-        return success_response(data=data, message="Profiles listed successfully")
+        response = super().list(request, *args, **kwargs)
+        return success_response(data=response.data, message="Profiles listed successfully")
+
+    def get_queryset(self):
+        role = (self.request.query_params.get("role") or "").strip().upper()
+        if role == User.Role.SUPPLIER:
+            return (
+                SupplierProfile.objects.filter(is_active=True)
+                .select_related("user")
+                .order_by("id")
+            )
+        if role == User.Role.DRIVER:
+            return (
+                DriverProfile.objects.filter(
+                    is_active=True, is_available=True
+                )
+                .select_related("user")
+                .order_by("id")
+            )
+        if role == User.Role.SELLER:
+            return (
+                SellerProfile.objects.filter(is_active=True)
+                .select_related("user")
+                .order_by("id")
+            )
+        return SupplierProfile.objects.none()
+
+    def get_serializer_class(self):
+        role = (self.request.query_params.get("role") or "").strip().upper()
+        if role == User.Role.SUPPLIER:
+            return SupplierProfileListSerializer
+        if role == User.Role.DRIVER:
+            return DriverProfileListSerializer
+        if role == User.Role.SELLER:
+            return SellerProfileListSerializer
+        return SupplierProfileListSerializer
+
+    def get_filterset_class(self):
+        role = (self.request.query_params.get("role") or "").strip().upper()
+        if role == User.Role.SUPPLIER:
+            return SupplierProfileListFilter
+        if role == User.Role.DRIVER:
+            return DriverProfileListFilter
+        if role == User.Role.SELLER:
+            return SellerProfileListFilter
+        return None
 
 
 class ChoicesAPIView(generics.GenericAPIView):
-    """GET /api/users/choices/ — Role, VehicleType vb. seçimler (value/label)."""
+    """GET /api/users/choices/ — Role, VehicleType choices (value/label)."""
     permission_classes = [IsAuthenticated]
 
     def get(self, request, *args, **kwargs):

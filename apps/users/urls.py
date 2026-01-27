@@ -14,7 +14,6 @@ from .views import (
 
 app_name = "users"
 
-# Tek url dosyası: auth ve users (profiles/choices) aynı modülde; config api/ altında include eder.
 urlpatterns = [
     path("auth/register/", RegisterView.as_view(), name="register"),
     path("auth/login/", LoginView.as_view(), name="login"),

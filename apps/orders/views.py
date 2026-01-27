@@ -21,6 +21,7 @@ from .serializers import (
     DeliveryStatusUpdateSerializer,
     DeliveryAssignDriverSerializer,
 )
+from .filters import DealFilter, DeliveryFilter, RequestToDriverFilter
 from .services import (
     DealService,
     DeliveryService,
@@ -52,10 +53,10 @@ class DealViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     pagination_class = StandardResultsSetPagination
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
-    filterset_fields = ['status']
+    filterset_class = DealFilter
     ordering_fields = ['created_at']
     ordering = ['-created_at']
-    
+
     def get_queryset(self):
         return DealService.get_user_deals(self.request.user)
     
@@ -217,10 +218,10 @@ class DeliveryViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     pagination_class = StandardResultsSetPagination
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
-    filterset_fields = ['status']
+    filterset_class = DeliveryFilter
     ordering_fields = ['created_at', 'total_amount']
     ordering = ['-created_at']
-    
+
     def get_queryset(self):
         return DeliveryService.get_user_deliveries(self.request.user)
     
@@ -345,10 +346,10 @@ class RequestToDriverViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     pagination_class = StandardResultsSetPagination
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
-    filterset_fields = ['status', 'deal', 'driver']
+    filterset_class = RequestToDriverFilter
     ordering_fields = ['created_at', 'requested_price']
     ordering = ['-created_at']
-    
+
     def get_queryset(self):
         return RequestToDriverService.get_user_requests(self.request.user)
     

@@ -212,6 +212,55 @@ class DriverProfileSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'created_at']
 
 
+# ==================== PROFILE LIST SERIALIZERS (for /api/users/profiles/?role=) ====================
+
+
+class SupplierProfileListSerializer(serializers.ModelSerializer):
+    product_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = SupplierProfile
+        fields = ["id", "company_name", "city", "description", "product_count"]
+        read_only_fields = fields
+
+    def get_product_count(self, obj):
+        return obj.products.filter(is_active=True).count()
+
+
+class DriverProfileListSerializer(serializers.ModelSerializer):
+    name = serializers.SerializerMethodField()
+    phone = serializers.CharField(source="user.phone_number", read_only=True)
+    vehicle_type_display = serializers.CharField(
+        source="get_vehicle_type_display", read_only=True
+    )
+
+    class Meta:
+        model = DriverProfile
+        fields = [
+            "id",
+            "name",
+            "phone",
+            "city",
+            "vehicle_type",
+            "vehicle_type_display",
+            "vehicle_plate",
+        ]
+        read_only_fields = fields
+
+    def get_name(self, obj):
+        return obj.user.get_full_name() or obj.user.username
+
+
+class SellerProfileListSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SellerProfile
+        fields = ["id", "business_name", "business_type", "city", "description"]
+        read_only_fields = fields
+
+
+# ==================== USER WITH PROFILE ====================
+
+
 class UserWithProfileSerializer(serializers.ModelSerializer):
     """User and Profile Serializer - with detailed profile information."""
 
