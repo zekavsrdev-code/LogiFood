@@ -7,6 +7,8 @@ from django.core.exceptions import ValidationError
 
 User = get_user_model()
 
+pytestmark = pytest.mark.unit
+
 
 @pytest.mark.django_db
 class TestUserModel:

@@ -5,6 +5,8 @@ import pytest
 from rest_framework import status
 from apps.core.utils import success_response, error_response
 
+pytestmark = pytest.mark.unit
+
 
 class TestResponseUtils:
     """Test response utility functions"""

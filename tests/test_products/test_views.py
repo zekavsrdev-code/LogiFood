@@ -9,6 +9,8 @@ from src.products.models import Category, Product
 
 User = get_user_model()
 
+pytestmark = pytest.mark.integration
+
 
 @pytest.mark.django_db
 class TestCategoryViews:

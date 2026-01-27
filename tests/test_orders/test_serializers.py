@@ -23,6 +23,8 @@ from src.orders.serializers import (
 
 User = get_user_model()
 
+pytestmark = pytest.mark.unit
+
 
 @pytest.mark.django_db
 class TestDealSerializer:

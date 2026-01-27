@@ -7,6 +7,8 @@ from src.orders.models import Deal, DealItem, Delivery, DeliveryItem, RequestToD
 
 User = get_user_model()
 
+pytestmark = pytest.mark.integration
+
 
 @pytest.mark.django_db
 class TestDealViews:

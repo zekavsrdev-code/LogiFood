@@ -4,6 +4,8 @@ Tests for health check endpoint
 import pytest
 from rest_framework import status
 
+pytestmark = pytest.mark.integration
+
 
 @pytest.mark.django_db
 class TestHealthCheck:

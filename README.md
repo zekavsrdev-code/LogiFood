@@ -548,7 +548,7 @@ Authorization: Bearer <access_token>
 
 ## 🧪 Testing Strategy
 
-This project follows a comprehensive testing strategy with **90% code coverage**, ensuring reliability and maintainability.
+This project follows a comprehensive testing strategy with **77% code coverage** (src + apps), ensuring reliability and maintainability.
 
 ### Testing Philosophy
 
@@ -633,6 +633,7 @@ tests/
 - **Consistent structure**: All modules follow the same test organization pattern
 - **Clear separation**: Unit tests (models, serializers, services) are separate from integration tests (views)
 - **E2E layer**: Full user journeys are tested in `test_e2e/` via API only (no direct DB manipulation)
+- **Markers**: Unit tests use `pytest.mark.unit`, integration tests (views, health check) use `pytest.mark.integration`, E2E tests use `pytest.mark.e2e` — run with `pytest -m unit`, `pytest -m integration`, `pytest -m e2e`
 - **Shared fixtures**: Common test data is defined in `conftest.py` for reusability
 
 This organization ensures:
@@ -673,7 +674,7 @@ pytest -m "not slow"    # Skip slow tests
 
 ### Test Coverage
 
-Current test coverage: **90%**
+Current test coverage: **77%** (run `pytest --cov=src --cov=apps --cov-report=term-missing`)
 
 Coverage is maintained through:
 - Comprehensive unit tests for all models and services

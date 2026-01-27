@@ -2,6 +2,8 @@
 Tests for User services
 """
 import pytest
+
+pytestmark = pytest.mark.unit
 from django.contrib.auth import get_user_model
 from src.users.services import UserService
 
