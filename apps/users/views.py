@@ -359,12 +359,3 @@ class ProfileListAPIView(generics.ListAPIView):
         if role == User.Role.SELLER:
             return SellerProfileListFilter
         return ProfileListSchemaFilter
-
-
-class ChoicesAPIView(generics.GenericAPIView):
-    """GET /api/users/choices/ — Role, VehicleType choices (value/label)."""
-    permission_classes = [IsAuthenticated]
-
-    def get(self, request, *args, **kwargs):
-        from .utils import get_user_choices
-        return success_response(data=get_user_choices(), message="OK")
