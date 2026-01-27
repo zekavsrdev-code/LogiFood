@@ -17,7 +17,7 @@ urlpatterns = [
     # Router URLs
     path('', include(router.urls)),
     
-    # Product URLs
-    path('products/', ProductListView.as_view(), name='product-list'),
-    path('products/<int:pk>/', ProductDetailView.as_view(), name='product-detail'),
+    # Product list/detail (avoids duplicate "products" in path)
+    path('items/', ProductListView.as_view(), name='product-list'),
+    path('items/<int:pk>/', ProductDetailView.as_view(), name='product-detail'),
 ]

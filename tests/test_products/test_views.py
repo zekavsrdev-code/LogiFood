@@ -43,39 +43,39 @@ class TestProductViews:
     
     def test_list_products(self, api_client, product):
         """Test listing products"""
-        response = api_client.get('/api/products/products/')
+        response = api_client.get('/api/products/items/')
         assert response.status_code == status.HTTP_200_OK
         assert response.data['success'] is True
         assert len(response.data['data']['results']) > 0
     
     def test_retrieve_product(self, api_client, product):
         """Test retrieving a product"""
-        response = api_client.get(f'/api/products/products/{product.id}/')
+        response = api_client.get(f'/api/products/items/{product.id}/')
         assert response.status_code == status.HTTP_200_OK
         assert response.data['success'] is True
         assert response.data['data']['name'] == 'Test Product'
     
     def test_product_search(self, api_client, product):
         """Test product search"""
-        response = api_client.get('/api/products/products/?search=Test')
+        response = api_client.get('/api/products/items/?search=Test')
         assert response.status_code == status.HTTP_200_OK
         assert response.data['success'] is True
     
     def test_product_filter_by_category(self, api_client, product, category):
         """Test filtering products by category"""
-        response = api_client.get(f'/api/products/products/?category__slug={category.slug}')
+        response = api_client.get(f'/api/products/items/?category__slug={category.slug}')
         assert response.status_code == status.HTTP_200_OK
         assert response.data['success'] is True
     
     def test_product_price_filter(self, api_client, product):
         """Test filtering products by price"""
-        response = api_client.get('/api/products/products/?min_price=50&max_price=150')
+        response = api_client.get('/api/products/items/?min_price=50&max_price=150')
         assert response.status_code == status.HTTP_200_OK
         assert response.data['success'] is True
     
     def test_product_ordering(self, api_client, product):
         """Test ordering products"""
-        response = api_client.get('/api/products/products/?ordering=price')
+        response = api_client.get('/api/products/items/?ordering=price')
         assert response.status_code == status.HTTP_200_OK
         assert response.data['success'] is True
 

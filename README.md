@@ -557,10 +557,11 @@ Authorization: Bearer <access_token>
 ### Product Endpoints
 | Method | URL | Description |
 |--------|-----|-------------|
-| GET | `/api/products/` | List all products |
-| GET | `/api/products/<id>/` | Product detail |
-| GET/POST | `/api/my-products/` | Supplier products (own) |
-| GET/PUT/DELETE | `/api/my-products/<id>/` | Supplier product management |
+| GET | `/api/products/categories/` | List categories |
+| GET | `/api/products/items/` | List all products |
+| GET | `/api/products/items/<id>/` | Product detail |
+| GET/POST | `/api/products/my-products/` | Supplier products (own) |
+| GET/PUT/DELETE | `/api/products/my-products/<id>/` | Supplier product management |
 
 ### Order Endpoints
 | Method | URL | Description |
