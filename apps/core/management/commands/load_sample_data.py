@@ -65,14 +65,14 @@ class Command(BaseCommand):
             {
                 'username': 'fresh_foods_supplier',
                 'email': 'supplier1@example.com',
-                'first_name': 'Ahmet',
-                'last_name': 'Yılmaz',
+                'first_name': 'John',
+                'last_name': 'Smith',
                 'phone_number': '+905551234567',
                 'role': User.Role.SUPPLIER,
                 'profile': {
                     'company_name': 'Fresh Foods Wholesale',
                     'tax_number': '1234567890',
-                    'address': 'Atatürk Cad. No:123, Kadıköy',
+                    'address': '123 Main St, Istanbul',
                     'city': 'Istanbul',
                     'description': 'Fresh fruits and vegetables supplier',
                 }
@@ -80,14 +80,14 @@ class Command(BaseCommand):
             {
                 'username': 'meat_supplier',
                 'email': 'supplier2@example.com',
-                'first_name': 'Mehmet',
-                'last_name': 'Demir',
+                'first_name': 'James',
+                'last_name': 'Brown',
                 'phone_number': '+905551234568',
                 'role': User.Role.SUPPLIER,
                 'profile': {
                     'company_name': 'Premium Meat Company',
                     'tax_number': '1234567891',
-                    'address': 'İnönü Cad. No:45, Çankaya',
+                    'address': '45 Second St, Ankara',
                     'city': 'Ankara',
                     'description': 'Premium quality meat and poultry supplier',
                 }
@@ -95,14 +95,14 @@ class Command(BaseCommand):
             {
                 'username': 'dairy_supplier',
                 'email': 'supplier3@example.com',
-                'first_name': 'Ayşe',
-                'last_name': 'Kaya',
+                'first_name': 'Jane',
+                'last_name': 'Doe',
                 'phone_number': '+905551234569',
                 'role': User.Role.SUPPLIER,
                 'profile': {
                     'company_name': 'Dairy Products Co.',
                     'tax_number': '1234567892',
-                    'address': 'Cumhuriyet Bul. No:78, Konak',
+                    'address': '78 Republic Blvd, Izmir',
                     'city': 'Izmir',
                     'description': 'Fresh dairy products supplier',
                 }
@@ -114,15 +114,15 @@ class Command(BaseCommand):
             {
                 'username': 'market_istanbul',
                 'email': 'seller1@example.com',
-                'first_name': 'Fatma',
-                'last_name': 'Şahin',
+                'first_name': 'Mary',
+                'last_name': 'Wilson',
                 'phone_number': '+905551234570',
                 'role': User.Role.SELLER,
                 'profile': {
                     'business_name': 'Istanbul Fresh Market',
                     'business_type': 'Supermarket',
                     'tax_number': '9876543210',
-                    'address': 'Bağdat Cad. No:200, Kadıköy',
+                    'address': '200 Commerce St, Istanbul',
                     'city': 'Istanbul',
                     'description': 'Large supermarket chain',
                 }
@@ -131,14 +131,14 @@ class Command(BaseCommand):
                 'username': 'restaurant_ankara',
                 'email': 'seller2@example.com',
                 'first_name': 'Ali',
-                'last_name': 'Öztürk',
+                'last_name': 'Taylor',
                 'phone_number': '+905551234571',
                 'role': User.Role.SELLER,
                 'profile': {
                     'business_name': 'Ankara Restaurant',
                     'business_type': 'Restaurant',
                     'tax_number': '9876543211',
-                    'address': 'Kızılay Meydanı No:15, Çankaya',
+                    'address': '15 City Square, Ankara',
                     'city': 'Ankara',
                     'description': 'Fine dining restaurant',
                 }
@@ -146,15 +146,15 @@ class Command(BaseCommand):
             {
                 'username': 'bakery_izmir',
                 'email': 'seller3@example.com',
-                'first_name': 'Zeynep',
-                'last_name': 'Arslan',
+                'first_name': 'Emma',
+                'last_name': 'Clark',
                 'phone_number': '+905551234572',
                 'role': User.Role.SELLER,
                 'profile': {
                     'business_name': 'Izmir Bakery',
                     'business_type': 'Bakery',
                     'tax_number': '9876543212',
-                    'address': 'Alsancak Cad. No:30, Konak',
+                    'address': '30 Harbor St, Izmir',
                     'city': 'Izmir',
                     'description': 'Artisan bakery and cafe',
                 }
@@ -166,8 +166,8 @@ class Command(BaseCommand):
             {
                 'username': 'driver_istanbul',
                 'email': 'driver1@example.com',
-                'first_name': 'Mustafa',
-                'last_name': 'Çelik',
+                'first_name': 'Mike',
+                'last_name': 'Davis',
                 'phone_number': '+905551234573',
                 'role': User.Role.DRIVER,
                 'profile': {
@@ -181,8 +181,8 @@ class Command(BaseCommand):
             {
                 'username': 'driver_ankara',
                 'email': 'driver2@example.com',
-                'first_name': 'Hasan',
-                'last_name': 'Yıldız',
+                'first_name': 'Chris',
+                'last_name': 'Lee',
                 'phone_number': '+905551234574',
                 'role': User.Role.DRIVER,
                 'profile': {
@@ -196,8 +196,8 @@ class Command(BaseCommand):
             {
                 'username': 'driver_izmir',
                 'email': 'driver3@example.com',
-                'first_name': 'Emre',
-                'last_name': 'Doğan',
+                'first_name': 'Alex',
+                'last_name': 'Moore',
                 'phone_number': '+905551234575',
                 'role': User.Role.DRIVER,
                 'profile': {
@@ -578,7 +578,7 @@ class Command(BaseCommand):
                     driver_license_number = done_deal.driver.license_number
                 
                 # Get delivery address and note from deal data (stored separately for sample data)
-                delivery_address = 'Alsancak Cad. No:30, Konak, Izmir'  # From deal data
+                delivery_address = '30 Harbor St, Izmir'  # From deal data
                 delivery_note = 'Regular delivery'  # From deal data
                 
                 # Set driver information based on delivery_handler

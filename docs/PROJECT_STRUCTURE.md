@@ -1,6 +1,6 @@
-# LogiFood — Proje Yapı Şeması ve Gariplikler
+# LogiFood — Project Structure Overview
 
-## 0. Görsel Özet (Mermaid)
+## 0. Visual Summary (Mermaid)
 
 ```mermaid
 flowchart TB
@@ -36,13 +36,13 @@ flowchart TB
 
 ---
 
-## 1. Dizin Yapısı (Üst Seviye)
+## 1. Top-Level Directory Layout
 
 ```
 LogiFood/
 ├── apps/
-│   ├── core/                    # Paylaşılan altyapı (base model, utils, cache, permissions, health)
-│   ├── users/                   # Kullanıcı, Supplier/Seller/Driver profilleri
+│   ├── core/                    # Shared base (models, utils, cache, permissions, health)
+│   ├── users/                   # User, Supplier/Seller/Driver profiles
 │   ├── products/                # Category, Product
 │   └── orders/                  # Deal, DealItem, Delivery, DeliveryItem, RequestToDriver
 ├── config/                      # Django proje config (settings, urls, wsgi)
@@ -58,7 +58,7 @@ LogiFood/
 
 ---
 
-## 2. Katman Şeması (apps vs src)
+## 2. Layer Schema (apps vs src)
 
 ```
                     ┌─────────────────────────────────────────┐
@@ -76,7 +76,7 @@ LogiFood/
 │ • BaseService   │    │    └───────────┴───────────┘   import core)    │
 │ • cache,        │    └──────────────────────────────────────────────┘
 │   permissions,  │
-│   pagination,   │    Bağımlılık yönü: apps.users/products/orders → apps.core
+│   pagination,   │    Dependency: apps.users/products/orders → apps.core
 │   utils,        │    Cross-domain: orders → users, products
 │   exceptions    │
 │ • load_sample_  │
@@ -87,7 +87,7 @@ LogiFood/
 
 ---
 
-## 3. Modül Detayı
+## 3. Module Details
 
 ### apps.core
 | Dosya | Rol |
@@ -140,7 +140,7 @@ LogiFood/
 
 ---
 
-## 4. API URL Ağacı
+## 4. API URL Tree
 
 ```
 /api/
@@ -154,8 +154,8 @@ LogiFood/
 │   └── toggle-availability/
 ├── products/                (apps.products)
 │   ├── categories/          (ViewSet)
-│   ├── my-products/        (ViewSet, supplier’ın ürünleri)
-│   ├── items/               (ürün listesi/detay; eskiden products/products)
+│   ├── my-products/        (ViewSet, supplier’s products)
+│   ├── items/               (product list/detail)
 │   └── items/<id>/
 ├── orders/                  (apps.orders)
 │   ├── deals/               (ViewSet)
@@ -173,7 +173,7 @@ LogiFood/
 
 ---
 
-## 5. Model Bağımlılıkları (Kabaca)
+## 5. Model Dependencies (Overview)
 
 ```
 TimeStampedModel (apps.core)
@@ -193,53 +193,53 @@ TimeStampedModel (apps.core)
 
 ---
 
-## 6. Tespit Edilen Gariplikler / Tutarsızlıklar
+## 6. Notable Inconsistencies / Decisions
 
-### 6.1 İki kök paket: `apps` vs `src`
-- **Durum:** Tek kök `apps/`: core, users, products, orders hepsi apps altında.
-- **Gariplik:** Proje hem `apps` hem `src` kullanıyor; tek kök (ör. hepsi `src` veya hepsi `apps`) daha tutarlı olur.
+### 6.1 Single root: `apps` vs `src`
+- **Current:** Single root `apps/`: core, users, products, orders.
+- **Note:** Using one root keeps the layout consistent.
 
-### 6.2 Products URL’de isim tekrarı
-- **Durum:** Ürün listesi/detay artık `api/products/items/`, `api/products/items/<id>/` (düzeltildi).
+### 6.2 Products URL
+- **Current:** Product list/detail at `api/products/items/`, `api/products/items/<id>/`.
 
-### 6.3 Management command’ların dağılımı
-- **Durum:** `load_categories`, `load_sample_data`, `load_dev_data` hepsi apps.core’da (load_categories products’tan core’a taşındı).
+### 6.3 Management commands
+- **Current:** `load_categories`, `load_sample_data`, `load_dev_data` live in apps.core.
 
-### 6.4 Cache sadece products’ta
-- **Durum:** `apps.core.cache` kullanımı: sadece `apps.products` (services, views, signals).
-- **Gariplik:** Orders/users tarafında cache yok. Bilinçli ise dokümante etmek, değilse orders için de (ör. discovery/supplier listesi) cache düşünülebilir.
+### 6.4 Cache (products only)
+- **Current:** `apps.core.cache` is used only in `apps.products` (services, views, signals).
+- **Note:** No cache in orders/users; add if needed (e.g. discovery/supplier lists).
 
-### 6.5 Sadece products’ta signals
-- **Durum:** `signals.py` yalnızca apps.products’ta (cache invalidate).
-- **Gariplik:** Orders’ta deal/delivery/request lifecycle için signal yok. Şu anki tasarımda büyük ihtimalle bilinçli; ileride domain event / audit log vb. eklenecekse orders için de signal veya event yapısı düşünülebilir.
+### 6.5 Signals (products only)
+- **Current:** `signals.py` exists only in apps.products (cache invalidation).
+- **Note:** No signals for deal/delivery/request lifecycle in orders; add if domain events or audit logging are introduced.
 
 ### 6.6 Core’da “view” dağınık
-- **Durum:** `apps.core.urls` içinde `health_check` fonksiyonu doğrudan tanımlı; ayrı bir `views.py` var ama health orada değil.
-- **Gariplik:** Küçük de olsa tutarlılık için health view’ı `views.py`’e alınıp urls’te import edilebilir.
+- **Current:** `health_check` is defined inline in `apps.core.urls`; a separate `views.py` exists but health is not there.
+- **Note:** For consistency, health can be moved to `views.py` and imported in urls.
 
-### 6.7 Orders’ta discovery URL’lerinin yeri
-- **Durum:** `suppliers/`, `drivers/`, `available-deliveries/` apps.orders altında.
+### 6.7 Discovery endpoints
+- **Current:** `suppliers/`, `drivers/`, `available-deliveries/` live under apps.orders.
 - **Gariplik:** Bunlar kullanıcı “keşif” (discovery) endpoint’leri; konsept olarak users veya ayrı bir “discovery” modülüne de taşınabilir. Şu anki haliyle iş mantığı orders (deal/driver/delivery) ile sıkı bağlı olduğu için orders’ta kalmak da mantıklı; sadece ileride büyürse ayrıştırma düşünülebilir.
 
-### 6.8 Test dizin isimlendirmesi
-- **Durum:** `test_orders`, `test_products`, `test_users`, `test_core`, `test_e2e`.
-- **Gariplik yok:** Modül adlarıyla uyumlu, anlaşılır.
+### 6.8 Test directory naming
+- **Current:** `test_orders`, `test_products`, `test_users`, `test_core`, `test_e2e`.
+- **Note:** Aligned with module names.
 
-### 6.9 Users’ta User için admin yok
-- **Durum:** users admin’de yalnızca SupplierProfile, SellerProfile, DriverProfile var; User model’i için ayrı bir ModelAdmin yok.
-- **Gariplik:** User, AUTH_USER_MODEL ve merkezî model; admin’de görünmemesi garip olabilir. En azından basit bir UserAdmin (veya User’ı bir profile admin’i üzerinden inline göstermek) eklenebilir.
+### 6.9 User admin
+- **Current:** users admin registers SupplierProfile, SellerProfile, DriverProfile; User has its own UserAdmin.
+- **Note:** User is AUTH_USER_MODEL; a simple UserAdmin improves discoverability.
 
 ---
 
-## 7. Özet Tablo
+## 7. Summary Table
 
-| Konu | Mevcut | Öneri (opsiyonel) |
-|------|--------|--------------------|
+| Topic | Current | Optional improvement |
+|-------|---------|----------------------|
 | Kök paket | apps + src | Tek kök (src) veya net “core vs domain” ayrımı dokümante et |
-| Products URL | .../products/items/ (düzeltildi) | — |
-| Management commands | categories@products, sample/dev@core | Hepsi core’da toplanabilir; load_dev_data zaten öyle kullanıyor |
+| Products URL | .../products/items/ | — |
+| Management commands | categories, sample, dev in core | — |
 | Cache | Sadece products | Orders’ta ihtiyaç varsa ekle; yoksa “sadece products” notunu yaz |
-| Health view | urls’te inline | views.py’e taşı |
-| User admin | Yok | Basit UserAdmin veya profile ile birlikte gösterim |
+| Health view | Inline in urls | Move to views.py |
+| User admin | Present | — |
 
-Bu şema ve gariplik listesi, proje yapısını ve geliştirme kararlarını hızlıca gözden geçirmek için kullanılabilir.
+This document supports quick review of project structure and design choices.

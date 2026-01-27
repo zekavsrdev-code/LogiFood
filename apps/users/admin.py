@@ -22,7 +22,7 @@ class UserAdmin(BaseUserAdmin):
 
 @admin.register(SupplierProfile)
 class SupplierProfileAdmin(admin.ModelAdmin):
-    """Tedarikçi Profil Admin"""
+    """Supplier profile admin"""
     list_display = ['company_name', 'user', 'city', 'is_active', 'created_at']
     list_filter = ['is_active', 'city', 'created_at']
     search_fields = ['company_name', 'user__username', 'tax_number']
@@ -32,7 +32,7 @@ class SupplierProfileAdmin(admin.ModelAdmin):
 
 @admin.register(SellerProfile)
 class SellerProfileAdmin(admin.ModelAdmin):
-    """Satıcı Profil Admin"""
+    """Seller profile admin"""
     list_display = ['business_name', 'user', 'business_type', 'city', 'is_active', 'created_at']
     list_filter = ['is_active', 'business_type', 'city', 'created_at']
     search_fields = ['business_name', 'user__username', 'tax_number']
@@ -42,7 +42,7 @@ class SellerProfileAdmin(admin.ModelAdmin):
 
 @admin.register(DriverProfile)
 class DriverProfileAdmin(admin.ModelAdmin):
-    """Sürücü Profil Admin"""
+    """Driver profile admin"""
     list_display = ['user', 'vehicle_type', 'vehicle_plate', 'city', 'is_available', 'is_active', 'created_at']
     list_filter = ['is_active', 'is_available', 'vehicle_type', 'city', 'created_at']
     search_fields = ['user__username', 'license_number', 'vehicle_plate']

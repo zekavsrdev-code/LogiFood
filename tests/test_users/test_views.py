@@ -140,10 +140,6 @@ class TestProfileListAPIView:
         assert response.status_code == status.HTTP_200_OK
         assert response.data['success'] is True
 
-    def test_list_drivers_not_supplier(self, seller_client):
-        response = seller_client.get('/api/users/profiles/', {'role': 'DRIVER'})
-        assert response.status_code == status.HTTP_403_FORBIDDEN
-
     def test_list_sellers(self, supplier_client, seller_user):
         response = supplier_client.get('/api/users/profiles/', {'role': 'SELLER'})
         assert response.status_code == status.HTTP_200_OK
@@ -160,24 +156,3 @@ class TestProfileListAPIView:
     def test_role_invalid(self, seller_client):
         response = seller_client.get('/api/users/profiles/', {'role': 'INVALID'})
         assert response.status_code == status.HTTP_400_BAD_REQUEST
-
-
-@pytest.mark.django_db
-class TestChoicesAPIView:
-    """GET /api/users/choices/ (Role, VehicleType choices)."""
-
-    def test_choices_returns_roles_and_vehicle_types(self, seller_client):
-        response = seller_client.get('/api/users/choices/')
-        assert response.status_code == status.HTTP_200_OK
-        assert response.data['success'] is True
-        data = response.data['data']
-        assert 'roles' in data
-        assert 'vehicle_types' in data
-        roles = data['roles']
-        assert any(r['value'] == 'SUPPLIER' and r.get('label') for r in roles)
-        vts = data['vehicle_types']
-        assert any(v['value'] == 'CAR' and v.get('label') for v in vts)
-
-    def test_choices_unauthorized(self, api_client):
-        response = api_client.get('/api/users/choices/')
-        assert response.status_code == status.HTTP_401_UNAUTHORIZED

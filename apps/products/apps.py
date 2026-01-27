@@ -5,7 +5,7 @@ class ProductsConfig(AppConfig):
     default_auto_field = 'django.db.models.BigAutoField'
     name = 'apps.products'
     label = 'products'
-    verbose_name = 'Ürünler'
+    verbose_name = 'Products'
     
     def ready(self):
         """Import signals when app is ready"""

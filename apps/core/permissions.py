@@ -31,9 +31,9 @@ class IsAdminOrReadOnly(permissions.BasePermission):
 
 class IsSupplier(permissions.BasePermission):
     """
-    Sadece Tedarikçiler için izin
+    Permission for suppliers only.
     """
-    message = 'Bu işlem sadece tedarikçiler için geçerlidir.'
+    message = 'This action is only allowed for suppliers.'
     
     def has_permission(self, request, view):
         return (
@@ -45,9 +45,9 @@ class IsSupplier(permissions.BasePermission):
 
 class IsSeller(permissions.BasePermission):
     """
-    Sadece Satıcılar için izin
+    Permission for sellers only.
     """
-    message = 'Bu işlem sadece satıcılar için geçerlidir.'
+    message = 'This action is only allowed for sellers.'
     
     def has_permission(self, request, view):
         return (
@@ -59,9 +59,9 @@ class IsSeller(permissions.BasePermission):
 
 class IsDriver(permissions.BasePermission):
     """
-    Sadece Sürücüler için izin
+    Permission for drivers only.
     """
-    message = 'Bu işlem sadece sürücüler için geçerlidir.'
+    message = 'This action is only allowed for drivers.'
     
     def has_permission(self, request, view):
         return (

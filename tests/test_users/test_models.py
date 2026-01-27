@@ -47,7 +47,7 @@ class TestUserModel:
             password='testpass123',
             role=User.Role.SELLER
         )
-        assert str(user) == 'testuser (Satıcı)'
+        assert str(user) == 'testuser (Seller)'
     
     def test_user_email_unique(self):
         """Test that email can be duplicate (email is no longer unique)"""

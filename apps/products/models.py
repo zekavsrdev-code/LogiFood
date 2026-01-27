@@ -5,23 +5,23 @@ from apps.users.models import SupplierProfile
 
 class Category(TimeStampedModel):
     """Product Category Model"""
-    name = models.CharField(max_length=100, verbose_name='Kategori Adı')
+    name = models.CharField(max_length=100, verbose_name='Category name')
     slug = models.SlugField(unique=True)
-    description = models.TextField(blank=True, null=True, verbose_name='Açıklama')
+    description = models.TextField(blank=True, null=True, verbose_name='Description')
     parent = models.ForeignKey(
         'self', 
         on_delete=models.CASCADE, 
         blank=True, 
         null=True, 
         related_name='children',
-        verbose_name='Üst Kategori'
+        verbose_name='Parent category'
     )
     is_active = models.BooleanField(default=True)
     
     class Meta:
         db_table = 'categories'
-        verbose_name = 'Kategori'
-        verbose_name_plural = 'Kategoriler'
+        verbose_name = 'Category'
+        verbose_name_plural = 'Categories'
         ordering = ['name']
     
     def __str__(self):
@@ -34,16 +34,16 @@ class Product(TimeStampedModel):
     class Unit(models.TextChoices):
         KG = 'KG', 'Kilogram'
         GRAM = 'GRAM', 'Gram'
-        PIECE = 'PIECE', 'Adet'
-        LITER = 'LITER', 'Litre'
-        BOX = 'BOX', 'Koli'
-        PACKAGE = 'PACKAGE', 'Paket'
+        PIECE = 'PIECE', 'Piece'
+        LITER = 'LITER', 'Liter'
+        BOX = 'BOX', 'Box'
+        PACKAGE = 'PACKAGE', 'Package'
     
     supplier = models.ForeignKey(
         SupplierProfile, 
         on_delete=models.CASCADE, 
         related_name='products',
-        verbose_name='Tedarikçi'
+        verbose_name='Supplier'
     )
     category = models.ForeignKey(
         Category, 
@@ -51,22 +51,22 @@ class Product(TimeStampedModel):
         null=True, 
         blank=True,
         related_name='products',
-        verbose_name='Kategori'
+        verbose_name='Category'
     )
-    name = models.CharField(max_length=255, verbose_name='Ürün Adı')
+    name = models.CharField(max_length=255, verbose_name='Product name')
     slug = models.SlugField(blank=True)
-    description = models.TextField(blank=True, null=True, verbose_name='Açıklama')
-    price = models.DecimalField(max_digits=10, decimal_places=2, verbose_name='Fiyat')
-    unit = models.CharField(max_length=20, choices=Unit.choices, default=Unit.KG, verbose_name='Birim')
-    stock = models.PositiveIntegerField(default=0, verbose_name='Stok')
-    min_order_quantity = models.PositiveIntegerField(default=1, verbose_name='Minimum Sipariş Miktarı')
-    image = models.ImageField(upload_to='products/', blank=True, null=True, verbose_name='Ürün Resmi')
+    description = models.TextField(blank=True, null=True, verbose_name='Description')
+    price = models.DecimalField(max_digits=10, decimal_places=2, verbose_name='Price')
+    unit = models.CharField(max_length=20, choices=Unit.choices, default=Unit.KG, verbose_name='Unit')
+    stock = models.PositiveIntegerField(default=0, verbose_name='Stock')
+    min_order_quantity = models.PositiveIntegerField(default=1, verbose_name='Min order quantity')
+    image = models.ImageField(upload_to='products/', blank=True, null=True, verbose_name='Product image')
     is_active = models.BooleanField(default=True)
     
     class Meta:
         db_table = 'products'
-        verbose_name = 'Ürün'
-        verbose_name_plural = 'Ürünler'
+        verbose_name = 'Product'
+        verbose_name_plural = 'Products'
         ordering = ['-created_at']
     
     def __str__(self):

@@ -19,7 +19,7 @@ urlpatterns = [
     path('api/docs/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
     path('api/redoc/', SpectacularRedocView.as_view(url_name='schema'), name='redoc'),
     
-    # API Routes (users: tek urls, api/ altında auth/ ve users/ prefix’leriyle)
+    # API routes (users app: auth/ and users/ under api/)
     path('api/', include('apps.users.urls')),
     path('api/products/', include('apps.products.urls')),
     path('api/orders/', include('apps.orders.urls')),
