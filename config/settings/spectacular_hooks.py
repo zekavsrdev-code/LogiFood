@@ -1,6 +1,29 @@
 """
-DRF Spectacular hooks for automatic tag assignment based on URL prefixes
+DRF Spectacular hooks for automatic tag assignment and schema sanitization.
 """
+
+
+def _make_schema_json_serializable(obj):
+    """Recursively replace ModelChoiceIteratorValue so schema can be JSON-serialized."""
+    try:
+        from django.forms.models import ModelChoiceIteratorValue
+    except ImportError:
+        ModelChoiceIteratorValue = type("_Never", (), {})  # no instances
+
+    if isinstance(obj, dict):
+        return {k: _make_schema_json_serializable(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_make_schema_json_serializable(v) for v in obj]
+    if isinstance(obj, ModelChoiceIteratorValue):
+        return _make_schema_json_serializable(obj.value)
+    return obj
+
+
+def postprocess_schema_serializable(result, generator, request, public):
+    """Ensure schema contains only JSON-serializable values (fixes ModelChoiceIteratorValue)."""
+    return _make_schema_json_serializable(result)
+
+
 def postprocess_tags(result, generator, request, public):
     """
     Automatically assign tags based on URL path prefixes

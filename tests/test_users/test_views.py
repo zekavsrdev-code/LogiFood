@@ -29,8 +29,8 @@ class TestUserRegistration:
         response = api_client.post('/api/auth/register/', data, format='json')
         assert response.status_code == status.HTTP_201_CREATED
         assert response.data['success'] is True
-        assert 'access' in response.data['data']
-        assert 'refresh' in response.data['data']
+        assert 'token' in response.data['data']
+        assert 'user' in response.data['data']
     
     def test_register_password_mismatch(self, api_client):
         """Test registration with password mismatch"""
@@ -59,7 +59,8 @@ class TestUserLogin:
         response = api_client.post('/api/auth/login/', data, format='json')
         assert response.status_code == status.HTTP_200_OK
         assert response.data['success'] is True
-        assert 'access' in response.data['data']
+        assert 'token' in response.data['data']
+        assert 'user' in response.data['data']
     
     def test_login_invalid_credentials(self, api_client):
         """Test login with invalid credentials"""
@@ -69,6 +70,17 @@ class TestUserLogin:
         }
         response = api_client.post('/api/auth/login/', data, format='json')
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
+
+
+@pytest.mark.django_db
+class TestUserLogout:
+    """Test user logout (Token auth: POST deletes token, no body)."""
+
+    def test_logout_success(self, authenticated_client):
+        """POST /api/auth/logout/ with valid token returns 200."""
+        response = authenticated_client.post('/api/auth/logout/')
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data.get('success') is True
 
 
 @pytest.mark.django_db

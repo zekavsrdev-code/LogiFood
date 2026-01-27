@@ -1,7 +1,7 @@
 """User authentication and profile management views"""
 from rest_framework import status, generics
 from rest_framework.permissions import AllowAny, IsAuthenticated
-from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework.authtoken.models import Token
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import extend_schema
 
@@ -18,7 +18,6 @@ from .serializers import (
     DriverProfileListSerializer,
     SellerProfileListSerializer,
     LoginInputSerializer,
-    LogoutInputSerializer,
     ProfileUpdateInputSerializer,
 )
 from .filters import (
@@ -55,24 +54,23 @@ class RegisterView(generics.CreateAPIView):
             )
         
         user = serializer.save()
-        tokens = UserService.generate_tokens(user)
-        
+        token_data = UserService.get_or_create_token(user)
         return success_response(
             {
                 "user": UserWithProfileSerializer(user).data,
-                **tokens,
+                **token_data,
             },
             message="Registration successful",
             status_code=status.HTTP_201_CREATED,
         )
 
 
-class LoginView(generics.CreateAPIView):
-    """User login endpoint"""
+class LoginView(generics.GenericAPIView):
+    """User login endpoint. POST with credentials, returns user + tokens."""
     serializer_class = LoginInputSerializer
     permission_classes = [AllowAny]
 
-    def create(self, request, *args, **kwargs):
+    def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         if not serializer.is_valid():
             return error_response(
@@ -96,38 +94,23 @@ class LoginView(generics.CreateAPIView):
                 status_code=status.HTTP_401_UNAUTHORIZED,
             )
 
-        tokens = UserService.generate_tokens(user)
+        token_data = UserService.get_or_create_token(user)
         return success_response(
             {
                 "user": UserWithProfileSerializer(user).data,
-                **tokens,
+                **token_data,
             },
             message="Login successful",
         )
 
 
-class LogoutView(generics.CreateAPIView):
-    """User logout endpoint"""
-    serializer_class = LogoutInputSerializer
+class LogoutView(generics.GenericAPIView):
+    """User logout endpoint. POST with Authorization: Token <token> — deletes token."""
     permission_classes = [IsAuthenticated]
 
-    def create(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
-        if not serializer.is_valid():
-            return error_response(
-                message="refresh_token required",
-                errors=serializer.errors,
-                status_code=status.HTTP_400_BAD_REQUEST,
-            )
-        try:
-            token = RefreshToken(serializer.validated_data["refresh_token"])
-            token.blacklist()
-            return success_response(message="Logout successful")
-        except Exception:
-            return error_response(
-                message="Invalid or expired token",
-                status_code=status.HTTP_400_BAD_REQUEST,
-            )
+    def post(self, request, *args, **kwargs):
+        Token.objects.filter(user=request.user).delete()
+        return success_response(message="Logout successful")
 
 
 # =============================================================================

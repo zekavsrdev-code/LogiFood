@@ -1,7 +1,7 @@
 from typing import Optional
 from django.contrib.auth import get_user_model
-from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import authenticate
+from rest_framework.authtoken.models import Token
 
 from apps.core.services import BaseService
 from apps.core.exceptions import BusinessLogicError
@@ -75,13 +75,10 @@ class UserService(BaseService):
         return authenticate(username=username, password=password)
     
     @classmethod
-    def generate_tokens(cls, user: User) -> dict:
-        """Generate JWT tokens for user"""
-        refresh = RefreshToken.for_user(user)
-        return {
-            'refresh': str(refresh),
-            'access': str(refresh.access_token),
-        }
+    def get_or_create_token(cls, user: User) -> dict:
+        """Get or create DRF token for user. Returns {'token': key}."""
+        token, _ = Token.objects.get_or_create(user=user)
+        return {'token': token.key}
     
     @classmethod
     def change_password(cls, user: User, old_password: str, new_password: str) -> User:

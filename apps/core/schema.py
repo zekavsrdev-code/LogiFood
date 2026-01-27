@@ -6,6 +6,19 @@ import django_filters
 from drf_spectacular.utils import OpenApiParameter, OpenApiTypes
 
 
+def _enum_value(v):
+    """Normalize choice value to JSON-serializable (handles ModelChoiceIteratorValue, Enum)."""
+    if v is None:
+        return None
+    for _ in range(5):  # avoid infinite loop on weird choices
+        if not hasattr(v, "value") or isinstance(v, (str, int, float, bool)):
+            break
+        v = getattr(v, "value", v)
+    if isinstance(v, (str, int, float, bool)):
+        return v
+    return str(v)
+
+
 def openapi_parameters_from_filterset(filterset_class):
     """
     Build a list of OpenApiParameter from a FilterSet's base_filters.
@@ -22,7 +35,7 @@ def openapi_parameters_from_filterset(filterset_class):
 
         if isinstance(f, django_filters.ChoiceFilter):
             choices = getattr(f.field, "choices", None) or extra.get("choices") or ()
-            enum = [c[0] for c in choices] if choices else None
+            enum = [_enum_value(c[0]) for c in choices] if choices else None
             params.append(
                 OpenApiParameter(
                     name,
@@ -34,7 +47,7 @@ def openapi_parameters_from_filterset(filterset_class):
             )
         elif isinstance(f, django_filters.TypedChoiceFilter):
             choices = getattr(f.field, "choices", None) or extra.get("choices") or ()
-            enum = [c[0] for c in choices] if choices else None
+            enum = [_enum_value(c[0]) for c in choices] if choices else None
             params.append(
                 OpenApiParameter(
                     name,
@@ -46,7 +59,7 @@ def openapi_parameters_from_filterset(filterset_class):
             )
         elif isinstance(f, django_filters.MultipleChoiceFilter):
             choices = getattr(f.field, "choices", None) or extra.get("choices") or ()
-            enum = [c[0] for c in choices] if choices else None
+            enum = [_enum_value(c[0]) for c in choices] if choices else None
             params.append(
                 OpenApiParameter(
                     name,

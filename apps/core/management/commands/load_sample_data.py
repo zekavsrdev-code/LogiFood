@@ -38,6 +38,9 @@ class Command(BaseCommand):
             DriverProfile.objects.all().delete()
             SellerProfile.objects.all().delete()
             SupplierProfile.objects.all().delete()
+            # DRF authtoken: remove tokens for users we are about to delete
+            from rest_framework.authtoken.models import Token
+            Token.objects.filter(user__is_superuser=False).delete()
             User.objects.filter(is_superuser=False).delete()
             self.stdout.write(self.style.SUCCESS('All sample data deleted.'))
 
