@@ -91,45 +91,13 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         return attrs
     
     def create(self, validated_data):
-        # Extract profile data
-        password2 = validated_data.pop('password2')
-        company_name = validated_data.pop('company_name', None)
-        business_name = validated_data.pop('business_name', None)
-        business_type = validated_data.pop('business_type', None)
-        license_number = validated_data.pop('license_number', None)
-        vehicle_type = validated_data.pop('vehicle_type', None)
-        vehicle_plate = validated_data.pop('vehicle_plate', None)
-        address = validated_data.pop('address', None)
-        city = validated_data.pop('city', None)
+        """
+        Create user with role-based profile.
         
-        # Create user (profile is automatically created via signal)
-        user = User.objects.create_user(**validated_data)
-        
-        # Update profile
-        if user.role == User.Role.SUPPLIER:
-            profile = user.supplier_profile
-            profile.company_name = company_name or user.username
-            profile.address = address
-            profile.city = city
-            profile.save()
-        
-        elif user.role == User.Role.SELLER:
-            profile = user.seller_profile
-            profile.business_name = business_name or user.username
-            profile.business_type = business_type
-            profile.address = address
-            profile.city = city
-            profile.save()
-        
-        elif user.role == User.Role.DRIVER:
-            profile = user.driver_profile
-            profile.license_number = license_number or ''
-            profile.vehicle_type = vehicle_type or DriverProfile.VehicleType.CAR
-            profile.vehicle_plate = vehicle_plate
-            profile.city = city
-            profile.save()
-        
-        return user
+        Delegates to UserService for business logic.
+        """
+        from .services import UserService
+        return UserService.register_user(validated_data)
 
 
 class ChangePasswordSerializer(serializers.Serializer):

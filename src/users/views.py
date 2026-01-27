@@ -1,16 +1,7 @@
-"""
-User authentication and profile management views.
-
-All views use DRF generic views following best practices:
-- CreateAPIView for POST operations
-- UpdateAPIView for PUT/PATCH operations
-- RetrieveUpdateAPIView for GET/PUT/PATCH operations
-- GenericAPIView only when custom logic is required
-"""
+"""User authentication and profile management views"""
 from rest_framework import status, generics
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
-from django.contrib.auth import authenticate
 
 from .models import User, SupplierProfile, SellerProfile, DriverProfile
 from .serializers import (
@@ -24,8 +15,10 @@ from .serializers import (
     LogoutInputSerializer,
     ProfileUpdateInputSerializer,
 )
+from .services import UserService
 from apps.core.serializers import EmptySerializer
 from apps.core.utils import success_response, error_response
+from apps.core.exceptions import BusinessLogicError
 
 
 # =============================================================================
@@ -34,17 +27,11 @@ from apps.core.utils import success_response, error_response
 
 
 class RegisterView(generics.CreateAPIView):
-    """
-    User registration endpoint.
-    
-    Supports role-based registration for SUPPLIER, SELLER, and DRIVER.
-    Returns JWT tokens upon successful registration.
-    """
+    """User registration endpoint"""
     serializer_class = UserRegistrationSerializer
     permission_classes = [AllowAny]
 
     def create(self, request, *args, **kwargs):
-        """Handle user registration and return JWT tokens."""
         serializer = self.get_serializer(data=request.data)
         if not serializer.is_valid():
             return error_response(
@@ -52,13 +39,14 @@ class RegisterView(generics.CreateAPIView):
                 errors=serializer.errors,
                 status_code=status.HTTP_400_BAD_REQUEST,
             )
+        
         user = serializer.save()
-        refresh = RefreshToken.for_user(user)
+        tokens = UserService.generate_tokens(user)
+        
         return success_response(
             {
                 "user": UserWithProfileSerializer(user).data,
-                "refresh": str(refresh),
-                "access": str(refresh.access_token),
+                **tokens,
             },
             message="Registration successful",
             status_code=status.HTTP_201_CREATED,
@@ -66,17 +54,11 @@ class RegisterView(generics.CreateAPIView):
 
 
 class LoginView(generics.CreateAPIView):
-    """
-    User login endpoint.
-    
-    Authenticates user with username and password.
-    Returns JWT access and refresh tokens upon successful authentication.
-    """
+    """User login endpoint"""
     serializer_class = LoginInputSerializer
     permission_classes = [AllowAny]
 
     def create(self, request, *args, **kwargs):
-        """Handle user login and return JWT tokens."""
         serializer = self.get_serializer(data=request.data)
         if not serializer.is_valid():
             return error_response(
@@ -87,7 +69,7 @@ class LoginView(generics.CreateAPIView):
 
         username = serializer.validated_data["username"]
         password = serializer.validated_data["password"]
-        user = authenticate(request, username=username, password=password)
+        user = UserService.authenticate_user(username, password)
 
         if user is None:
             return error_response(
@@ -100,28 +82,22 @@ class LoginView(generics.CreateAPIView):
                 status_code=status.HTTP_401_UNAUTHORIZED,
             )
 
-        refresh = RefreshToken.for_user(user)
+        tokens = UserService.generate_tokens(user)
         return success_response(
             {
                 "user": UserWithProfileSerializer(user).data,
-                "refresh": str(refresh),
-                "access": str(refresh.access_token),
+                **tokens,
             },
             message="Login successful",
         )
 
 
 class LogoutView(generics.CreateAPIView):
-    """
-    User logout endpoint.
-    
-    Blacklists the provided refresh token to invalidate the session.
-    """
+    """User logout endpoint"""
     serializer_class = LogoutInputSerializer
     permission_classes = [IsAuthenticated]
 
     def create(self, request, *args, **kwargs):
-        """Handle user logout by blacklisting refresh token."""
         serializer = self.get_serializer(data=request.data)
         if not serializer.is_valid():
             return error_response(
@@ -146,32 +122,23 @@ class LogoutView(generics.CreateAPIView):
 
 
 class ProfileView(generics.RetrieveUpdateAPIView):
-    """
-    User profile management endpoint.
-    
-    GET: Retrieve current user's profile information
-    PUT/PATCH: Update current user's profile information
-    """
+    """User profile management endpoint"""
     permission_classes = [IsAuthenticated]
 
     def get_serializer_class(self):
-        """Return appropriate serializer based on request method."""
         if self.request.method in ["PUT", "PATCH"]:
             return ProfileUpdateInputSerializer
         return UserWithProfileSerializer
 
     def get_object(self):
-        """Return the current authenticated user."""
         return self.request.user
 
     def retrieve(self, request, *args, **kwargs):
-        """Retrieve current user's profile."""
         instance = self.get_object()
         serializer = self.get_serializer(instance)
         return success_response(data=serializer.data, message="Profile information")
 
     def update(self, request, *args, **kwargs):
-        """Update current user's profile."""
         partial = kwargs.pop("partial", True)
         instance = self.get_object()
         serializer = self.get_serializer(data=request.data, partial=partial)
@@ -201,10 +168,9 @@ class RoleProfileView(generics.RetrieveUpdateAPIView):
     Automatically determines profile type based on user's role.
     """
     permission_classes = [IsAuthenticated]
-    serializer_class = SupplierProfileSerializer  # Default for schema introspection
+    serializer_class = SupplierProfileSerializer
 
     def get_serializer_class(self):
-        """Return appropriate serializer based on user's role."""
         if not self.request.user.is_authenticated:
             return SupplierProfileSerializer
         user = self.request.user
@@ -217,7 +183,6 @@ class RoleProfileView(generics.RetrieveUpdateAPIView):
         return SupplierProfileSerializer
 
     def get_object(self):
-        """Return the role-specific profile for current user."""
         user = self.request.user
         if user.is_supplier:
             return user.supplier_profile
@@ -228,7 +193,6 @@ class RoleProfileView(generics.RetrieveUpdateAPIView):
         return None
 
     def retrieve(self, request, *args, **kwargs):
-        """Retrieve role-specific profile."""
         instance = self.get_object()
         if instance is None:
             return error_response(
@@ -239,7 +203,6 @@ class RoleProfileView(generics.RetrieveUpdateAPIView):
         return success_response(data=serializer.data, message="Role profile")
 
     def update(self, request, *args, **kwargs):
-        """Update role-specific profile."""
         instance = self.get_object()
         if instance is None:
             return error_response(
@@ -258,20 +221,14 @@ class RoleProfileView(generics.RetrieveUpdateAPIView):
 
 
 class ChangePasswordView(generics.UpdateAPIView):
-    """
-    Password change endpoint.
-    
-    PUT/PATCH: Change user's password after validating old password.
-    """
+    """Password change endpoint"""
     serializer_class = ChangePasswordSerializer
     permission_classes = [IsAuthenticated]
 
     def get_object(self):
-        """Return the current authenticated user."""
         return self.request.user
 
     def update(self, request, *args, **kwargs):
-        """Handle password change with old password validation."""
         serializer = self.get_serializer(data=request.data)
         if not serializer.is_valid():
             return error_response(
@@ -292,17 +249,11 @@ class ChangePasswordView(generics.UpdateAPIView):
 
 
 class ToggleAvailabilityView(generics.UpdateAPIView):
-    """
-    Driver availability toggle endpoint.
-    
-    PUT/PATCH: Toggle driver's availability status (available ↔ busy).
-    Only accessible by drivers.
-    """
+    """Driver availability toggle endpoint"""
     permission_classes = [IsAuthenticated]
-    serializer_class = EmptySerializer  # No body required; for schema introspection
+    serializer_class = EmptySerializer
 
     def get_object(self):
-        """Return the current driver's profile."""
         user = self.request.user
         if not user.is_driver:
             return None
@@ -310,18 +261,16 @@ class ToggleAvailabilityView(generics.UpdateAPIView):
 
     def update(self, request, *args, **kwargs):
         """Toggle driver availability status."""
-        driver_profile = self.get_object()
-        if driver_profile is None:
-            return error_response(
-                message="This operation is only for drivers",
-                status_code=status.HTTP_403_FORBIDDEN,
+        user = request.user
+        try:
+            is_available = UserService.toggle_driver_availability(user)
+            status_text = "available" if is_available else "busy"
+            return success_response(
+                data={"is_available": is_available},
+                message=f'Your status has been updated to "{status_text}"',
             )
-
-        driver_profile.is_available = not driver_profile.is_available
-        driver_profile.save()
-
-        status_text = "available" if driver_profile.is_available else "busy"
-        return success_response(
-            data={"is_available": driver_profile.is_available},
-            message=f'Your status has been updated to "{status_text}"',
-        )
+        except BusinessLogicError as e:
+            return error_response(
+                message=str(e.detail),
+                status_code=e.status_code
+            )

@@ -1,10 +1,4 @@
-"""
-Product and category views.
-
-All views use DRF generic views and viewsets following best practices:
-- ViewSets for CRUD operations
-- Generic views for read-only or specific operations
-"""
+"""Product and category views"""
 from rest_framework import status, viewsets, generics, filters
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from django_filters.rest_framework import DjangoFilterBackend
@@ -15,22 +9,19 @@ from .serializers import (
     ProductSerializer,
     ProductCreateSerializer,
 )
+from .services import CategoryService, ProductService
 from apps.core.utils import success_response
 from apps.core.permissions import IsSupplier
 from apps.core.pagination import StandardResultsSetPagination
-from apps.core.cache import cache_get_or_set, cache_key, invalidate_model_cache
+from apps.core.exceptions import BusinessLogicError
+from apps.core.cache import cache_get_or_set, cache_key
 
 
 # ==================== CATEGORY VIEWS ====================
 
 
 class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
-    """
-    Category ViewSet - Read-only operations.
-    
-    GET /api/products/categories/ - List all active root categories
-    GET /api/products/categories/{id}/ - Retrieve category detail with children
-    """
+    """Category ViewSet - Read-only operations"""
     queryset = Category.objects.filter(is_active=True, parent__isnull=True)
     serializer_class = CategorySerializer
     permission_classes = [AllowAny]
@@ -40,39 +31,15 @@ class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
     ordering = ['name']
     
     def get_queryset(self):
-        """Get categories with cache."""
-        cache_key_str = cache_key('categories', 'root', 'active')
-        
-        def get_category_ids():
-            # Cache only the IDs for better performance
-            queryset = Category.objects.filter(is_active=True, parent__isnull=True)
-            return list(queryset.values_list('id', flat=True))
-        
-        category_ids = cache_get_or_set(cache_key_str, get_category_ids, timeout=600)  # 10 minutes
-        
-        # Convert back to QuerySet for DRF filtering/ordering
-        queryset = Category.objects.filter(id__in=category_ids, is_active=True, parent__isnull=True)
-        queryset = queryset.prefetch_related('children')
-        
-        return queryset
+        return CategoryService.get_active_root_categories()
     
     def list(self, request, *args, **kwargs):
-        """List all active root categories."""
         response = super().list(request, *args, **kwargs)
         return success_response(data=response.data, message='Categories listed successfully')
     
     def retrieve(self, request, *args, **kwargs):
-        """Retrieve category detail with nested children."""
         instance = self.get_object()
-        
-        # Cache category detail with children
-        cache_key_str = cache_key('category', 'detail', category_id=instance.id)
-        
-        def get_category_data():
-            serializer = self.get_serializer(instance)
-            return serializer.data
-        
-        data = cache_get_or_set(cache_key_str, get_category_data, timeout=600)  # 10 minutes
+        data = CategoryService.get_category_detail(instance.id)
         return success_response(data=data, message='Category detail retrieved successfully')
 
 
@@ -80,11 +47,7 @@ class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
 
 
 class ProductListView(generics.ListAPIView):
-    """
-    Product list endpoint - Public access.
-    
-    GET /api/products/products/ - List all active products with filtering and search
-    """
+    """Product list endpoint - Public access"""
     queryset = Product.objects.filter(is_active=True).select_related('supplier', 'category')
     serializer_class = ProductSerializer
     permission_classes = [AllowAny]
@@ -96,23 +59,21 @@ class ProductListView(generics.ListAPIView):
     ordering = ['-created_at']
     
     def get_queryset(self):
-        """Apply custom price filtering."""
-        queryset = super().get_queryset()
+        filters = {}
+        if 'category__slug' in self.request.query_params:
+            filters['category__slug'] = self.request.query_params['category__slug']
+        if 'supplier' in self.request.query_params:
+            filters['supplier'] = self.request.query_params['supplier']
+        if 'min_price' in self.request.query_params:
+            filters['min_price'] = self.request.query_params['min_price']
+        if 'max_price' in self.request.query_params:
+            filters['max_price'] = self.request.query_params['max_price']
+        if 'search' in self.request.query_params:
+            filters['search'] = self.request.query_params['search']
         
-        # Price range filtering
-        min_price = self.request.query_params.get('min_price')
-        max_price = self.request.query_params.get('max_price')
-        
-        if min_price:
-            queryset = queryset.filter(price__gte=min_price)
-        if max_price:
-            queryset = queryset.filter(price__lte=max_price)
-        
-        return queryset
+        return ProductService.get_active_products(filters)
     
     def list(self, request, *args, **kwargs):
-        """List all active products with applied filters."""
-        # Only cache if no filters are applied (most common case)
         has_filters = any([
             request.query_params.get('category__slug'),
             request.query_params.get('supplier'),
@@ -122,7 +83,6 @@ class ProductListView(generics.ListAPIView):
         ])
         
         if not has_filters:
-            # Cache unfiltered product list
             cache_key_str = cache_key('products', 'list', 'active')
             
             def get_products():
@@ -134,51 +94,34 @@ class ProductListView(generics.ListAPIView):
                 serializer = self.get_serializer(queryset, many=True)
                 return serializer.data
             
-            data = cache_get_or_set(cache_key_str, get_products, timeout=300)  # 5 minutes
+            data = cache_get_or_set(cache_key_str, get_products, timeout=300)
             return success_response(data=data, message='Products listed successfully')
         
-        # Use normal flow for filtered queries
         response = super().list(request, *args, **kwargs)
         return success_response(data=response.data, message='Products listed successfully')
 
 
 class ProductDetailView(generics.RetrieveAPIView):
-    """
-    Product detail endpoint - Public access.
-    
-    GET /api/products/products/{id}/ - Retrieve product detail
-    """
+    """Product detail endpoint - Public access"""
     queryset = Product.objects.filter(is_active=True)
     serializer_class = ProductSerializer
     permission_classes = [AllowAny]
     
     def retrieve(self, request, *args, **kwargs):
-        """Retrieve product detail."""
         instance = self.get_object()
         
-        # Cache product detail
         cache_key_str = cache_key('product', 'detail', product_id=instance.id)
         
         def get_product_data():
             serializer = self.get_serializer(instance)
             return serializer.data
         
-        data = cache_get_or_set(cache_key_str, get_product_data, timeout=300)  # 5 minutes
+        data = cache_get_or_set(cache_key_str, get_product_data, timeout=300)
         return success_response(data=data, message='Product detail')
 
 
 class SupplierProductViewSet(viewsets.ModelViewSet):
-    """
-    Supplier's product management ViewSet.
-    
-    Full CRUD operations for supplier's own products:
-    - GET /api/products/supplier-products/ - List supplier's products
-    - POST /api/products/supplier-products/ - Create new product
-    - GET /api/products/supplier-products/{id}/ - Retrieve product detail
-    - PUT /api/products/supplier-products/{id}/ - Update product
-    - PATCH /api/products/supplier-products/{id}/ - Partial update product
-    - DELETE /api/products/supplier-products/{id}/ - Soft delete product (sets is_active=False)
-    """
+    """Supplier's product management ViewSet"""
     serializer_class = ProductSerializer
     permission_classes = [IsAuthenticated, IsSupplier]
     pagination_class = StandardResultsSetPagination
@@ -189,36 +132,33 @@ class SupplierProductViewSet(viewsets.ModelViewSet):
     ordering = ['-created_at']
     
     def get_queryset(self):
-        """Return only products belonging to the authenticated supplier."""
-        return Product.objects.filter(supplier=self.request.user.supplier_profile)
+        return ProductService.get_supplier_products(self.request.user.supplier_profile)
     
     def get_serializer_class(self):
-        """Return appropriate serializer based on action."""
         if self.action in ['create', 'update', 'partial_update']:
             return ProductCreateSerializer
         return ProductSerializer
     
     def perform_create(self, serializer):
-        """Set supplier and created_by when creating a product."""
-        instance = serializer.save(
-            supplier=self.request.user.supplier_profile,
-            created_by=self.request.user
-        )
-        # Invalidate product caches
-        invalidate_model_cache(Product)
+        try:
+            product = ProductService.create_product(
+                self.request.user,
+                serializer.validated_data
+            )
+            serializer.instance = product
+        except BusinessLogicError as e:
+            from rest_framework.exceptions import ValidationError
+            raise ValidationError(str(e.detail))
     
     def perform_destroy(self, instance):
-        """Soft delete - set is_active=False instead of actual deletion."""
         instance.is_active = False
         instance.save()
     
     def list(self, request, *args, **kwargs):
-        """List supplier's products."""
         response = super().list(request, *args, **kwargs)
         return success_response(data=response.data, message='Your products listed successfully')
     
     def create(self, request, *args, **kwargs):
-        """Create a new product."""
         response = super().create(request, *args, **kwargs)
         return success_response(
             data=response.data,
@@ -227,30 +167,64 @@ class SupplierProductViewSet(viewsets.ModelViewSet):
         )
     
     def retrieve(self, request, *args, **kwargs):
-        """Retrieve product detail."""
         response = super().retrieve(request, *args, **kwargs)
         return success_response(data=response.data, message='Product detail')
     
     def update(self, request, *args, **kwargs):
-        """Update product."""
         instance = self.get_object()
-        response = super().update(request, *args, **kwargs)
-        # Invalidate cache for this product and product list
-        invalidate_model_cache(Product, instance_id=instance.id)
-        return success_response(data=response.data, message='Product updated successfully')
+        serializer = self.get_serializer(instance, data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        try:
+            updated_product = ProductService.update_product(
+                instance,
+                request.user,
+                serializer.validated_data
+            )
+            response_serializer = ProductSerializer(updated_product)
+            return success_response(
+                data=response_serializer.data,
+                message='Product updated successfully'
+            )
+        except BusinessLogicError as e:
+            from apps.core.utils import error_response
+            return error_response(
+                message=str(e.detail),
+                status_code=e.status_code
+            )
     
     def partial_update(self, request, *args, **kwargs):
-        """Partially update product."""
         instance = self.get_object()
-        response = super().partial_update(request, *args, **kwargs)
-        # Invalidate cache for this product and product list
-        invalidate_model_cache(Product, instance_id=instance.id)
-        return success_response(data=response.data, message='Product updated successfully')
+        serializer = self.get_serializer(instance, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        
+        try:
+            updated_product = ProductService.update_product(
+                instance,
+                request.user,
+                serializer.validated_data
+            )
+            response_serializer = ProductSerializer(updated_product)
+            return success_response(
+                data=response_serializer.data,
+                message='Product updated successfully'
+            )
+        except BusinessLogicError as e:
+            from apps.core.utils import error_response
+            return error_response(
+                message=str(e.detail),
+                status_code=e.status_code
+            )
     
     def destroy(self, request, *args, **kwargs):
-        """Soft delete product."""
         instance = self.get_object()
-        super().destroy(request, *args, **kwargs)
-        # Invalidate cache for this product and product list
-        invalidate_model_cache(Product, instance_id=instance.id)
-        return success_response(message='Product deleted successfully')
+        
+        try:
+            ProductService.delete_product(instance, request.user)
+            return success_response(message='Product deleted successfully')
+        except BusinessLogicError as e:
+            from apps.core.utils import error_response
+            return error_response(
+                message=str(e.detail),
+                status_code=e.status_code
+            )

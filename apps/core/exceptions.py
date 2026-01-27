@@ -33,3 +33,9 @@ class PermissionDeniedError(CustomAPIException):
     """Permission Denied Error"""
     status_code = status.HTTP_403_FORBIDDEN
     default_detail = 'Permission denied.'
+
+
+class BusinessLogicError(CustomAPIException):
+    """Business logic error for service layer"""
+    status_code = status.HTTP_400_BAD_REQUEST
+    default_detail = 'Business logic error occurred.'
