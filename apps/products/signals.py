@@ -20,9 +20,9 @@ def category_cache_invalidate(sender, instance, **kwargs):
 def category_cache_invalidate_delete(sender, instance, **kwargs):
     """Invalidate category cache when category is deleted"""
     invalidate_model_cache(Category)
-    # Also invalidate parent category cache if exists
-    if instance.parent:
-        invalidate_model_cache(Category, instance_id=instance.parent.id)
+    # Use parent_id to avoid loading parent (may already be deleted in bulk delete)
+    if instance.parent_id:
+        invalidate_model_cache(Category, instance_id=instance.parent_id)
 
 
 @receiver(post_save, sender=Product)
@@ -38,6 +38,6 @@ def product_cache_invalidate(sender, instance, **kwargs):
 def product_cache_invalidate_delete(sender, instance, **kwargs):
     """Invalidate product cache when product is deleted"""
     invalidate_model_cache(Product, instance_id=instance.id)
-    # Also invalidate category cache if product had category
-    if instance.category:
-        invalidate_model_cache(Category, instance_id=instance.category.id)
+    # Use category_id to avoid loading category (may already be deleted in bulk delete)
+    if instance.category_id:
+        invalidate_model_cache(Category, instance_id=instance.category_id)
