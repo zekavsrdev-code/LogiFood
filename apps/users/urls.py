@@ -9,7 +9,6 @@ from .views import (
     ChangePasswordView,
     ToggleAvailabilityView,
     ProfileListAPIView,
-    ChoicesAPIView,
 )
 
 app_name = "users"
@@ -23,5 +22,4 @@ urlpatterns = [
     path("auth/change-password/", ChangePasswordView.as_view(), name="change-password"),
     path("auth/toggle-availability/", ToggleAvailabilityView.as_view(), name="toggle-availability"),
     path("users/profiles/", ProfileListAPIView.as_view(), name="profile-list"),
-    path("users/choices/", ChoicesAPIView.as_view(), name="choices"),
 ]
