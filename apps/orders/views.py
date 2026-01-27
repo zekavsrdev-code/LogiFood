@@ -25,7 +25,6 @@ from .services import (
     DealService,
     DeliveryService,
     RequestToDriverService,
-    DiscoveryService,
 )
 from apps.core.utils import success_response, error_response
 from apps.core.permissions import IsSupplier, IsSeller, IsDriver
@@ -292,64 +291,7 @@ class DeliveryViewSet(viewsets.ModelViewSet):
         return error_response(message='Driver assignment failed', errors=serializer.errors)
 
 
-# ==================== DISCOVERY VIEWS ====================
-
-
-class SupplierListView(generics.ListAPIView):
-    """Supplier discovery endpoint"""
-    queryset = None
-    permission_classes = [IsAuthenticated]
-    pagination_class = StandardResultsSetPagination
-    filter_backends = [DjangoFilterBackend, filters.SearchFilter]
-    filterset_fields = ['city']
-    search_fields = ['company_name', 'description']
-    
-    def list(self, request, *args, **kwargs):
-        filters = {}
-        if 'city' in request.query_params:
-            filters['city'] = request.query_params['city']
-        if 'search' in request.query_params:
-            filters['search'] = request.query_params['search']
-        
-        suppliers = DiscoveryService.get_suppliers_with_product_counts(filters)
-        
-        page = self.paginate_queryset(suppliers)
-        if page is not None:
-            paginated_response = self.get_paginated_response(page)
-            return success_response(
-                data=paginated_response.data,
-                message='Suppliers listed successfully'
-            )
-        
-        return success_response(data=suppliers, message='Suppliers listed successfully')
-
-
-class DriverListView(generics.ListAPIView):
-    """Driver discovery endpoint"""
-    queryset = None
-    permission_classes = [IsAuthenticated, IsSupplier]
-    pagination_class = StandardResultsSetPagination
-    filter_backends = [DjangoFilterBackend]
-    filterset_fields = ['city', 'vehicle_type']
-    
-    def list(self, request, *args, **kwargs):
-        filters = {}
-        if 'city' in request.query_params:
-            filters['city'] = request.query_params['city']
-        if 'vehicle_type' in request.query_params:
-            filters['vehicle_type'] = request.query_params['vehicle_type']
-        
-        drivers = DiscoveryService.get_available_drivers(filters)
-        
-        page = self.paginate_queryset(drivers)
-        if page is not None:
-            paginated_response = self.get_paginated_response(page)
-            return success_response(
-                data=paginated_response.data,
-                message='Drivers listed successfully'
-            )
-        
-        return success_response(data=drivers, message='Drivers listed successfully')
+# ==================== DELIVERY DISCOVERY VIEWS ====================
 
 
 class AvailableDeliveryListView(generics.ListAPIView):

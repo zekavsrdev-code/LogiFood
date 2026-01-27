@@ -1,7 +1,7 @@
 from django.db import models
 from apps.core.models import TimeStampedModel
-from src.users.models import SupplierProfile, SellerProfile
-from src.products.models import Product
+from apps.users.models import SupplierProfile, SellerProfile
+from apps.products.models import Product
 
 
 class Deal(TimeStampedModel):

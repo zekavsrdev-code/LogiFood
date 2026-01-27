@@ -1,9 +1,9 @@
 from rest_framework import serializers
 from decimal import Decimal
 from .models import Deal, DealItem, Delivery, DeliveryItem, RequestToDriver
-from src.users.models import SupplierProfile, DriverProfile, SellerProfile
-from src.users.serializers import SupplierProfileSerializer, SellerProfileSerializer, DriverProfileSerializer
-from src.products.models import Product
+from apps.users.models import SupplierProfile, DriverProfile, SellerProfile
+from apps.users.serializers import SupplierProfileSerializer, SellerProfileSerializer, DriverProfileSerializer
+from apps.products.models import Product
 
 
 # ==================== DEAL SERIALIZERS ====================

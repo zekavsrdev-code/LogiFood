@@ -1,6 +1,6 @@
 from django.db import models
 from apps.core.models import TimeStampedModel
-from src.users.models import SupplierProfile
+from apps.users.models import SupplierProfile
 
 
 class Category(TimeStampedModel):

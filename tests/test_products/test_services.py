@@ -2,8 +2,8 @@
 import pytest
 from decimal import Decimal
 from django.contrib.auth import get_user_model
-from src.products.models import Category, Product
-from src.products.services import CategoryService, ProductService
+from apps.products.models import Category, Product
+from apps.products.services import CategoryService, ProductService
 from apps.core.exceptions import BusinessLogicError
 from rest_framework import status
 

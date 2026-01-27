@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from .models import Category, Product
-from src.users.models import SupplierProfile
+from apps.users.models import SupplierProfile
 
 
 class CategorySerializer(serializers.ModelSerializer):

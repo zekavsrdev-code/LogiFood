@@ -19,10 +19,10 @@ urlpatterns = [
     path('api/docs/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
     path('api/redoc/', SpectacularRedocView.as_view(url_name='schema'), name='redoc'),
     
-    # API Routes
-    path('api/auth/', include('src.users.urls')),
-    path('api/products/', include('src.products.urls')),
-    path('api/orders/', include('src.orders.urls')),
+    # API Routes (users: tek urls, api/ altında auth/ ve users/ prefix’leriyle)
+    path('api/', include('apps.users.urls')),
+    path('api/products/', include('apps.products.urls')),
+    path('api/orders/', include('apps.orders.urls')),
     path('api/', include('apps.core.urls')),
 ]
 

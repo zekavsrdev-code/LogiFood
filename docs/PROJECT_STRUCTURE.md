@@ -16,7 +16,7 @@ flowchart TB
         cmds_c["load_sample_data, load_dev_data"]
     end
 
-    subgraph src_domain["src/ (domain apps)"]
+    subgraph apps_domain["apps/ (domain apps)"]
         direction LR
         users["users\nUser, SupplierProfile,\nSellerProfile, DriverProfile"]
         products["products\nCategory, Product"]
@@ -31,7 +31,7 @@ flowchart TB
     orders --> products
 
     config --> core
-    config --> src_domain
+    config --> apps_domain
 ```
 
 ---
@@ -41,8 +41,7 @@ flowchart TB
 ```
 LogiFood/
 ├── apps/
-│   └── core/                    # Paylaşılan altyapı (base model, utils, cache, permissions, health)
-├── src/
+│   ├── core/                    # Paylaşılan altyapı (base model, utils, cache, permissions, health)
 │   ├── users/                   # Kullanıcı, Supplier/Seller/Driver profilleri
 │   ├── products/                # Category, Product
 │   └── orders/                  # Deal, DealItem, Delivery, DeliveryItem, RequestToDriver
@@ -70,14 +69,14 @@ LogiFood/
          ┌────────────────────────────┼────────────────────────────┐
          ▼                            ▼                            ▼
 ┌─────────────────┐    ┌──────────────────────────────────────────────┐
-│   apps.core     │    │                   src/                        │
+│   apps.core     │    │                   apps/                       │
 │                 │    │  users ──► products ──► orders                │
 │ • TimeStamped   │◄───│    │           │           │                  │
 │   Model         │    │    │           │           │  (domain apps      │
 │ • BaseService   │    │    └───────────┴───────────┘   import core)    │
 │ • cache,        │    └──────────────────────────────────────────────┘
 │   permissions,  │
-│   pagination,   │    Bağımlılık yönü: src.* → apps.core
+│   pagination,   │    Bağımlılık yönü: apps.users/products/orders → apps.core
 │   utils,        │    Cross-domain: orders → users, products
 │   exceptions    │
 │ • load_sample_  │
@@ -106,7 +105,7 @@ LogiFood/
 | filters.py | Ortak filtreler |
 | management/commands/ | load_sample_data, load_dev_data |
 
-### src.users (app label: `users`, AUTH_USER_MODEL = 'users.User')
+### apps.users (app label: `users`, AUTH_USER_MODEL = 'users.User')
 | Dosya | Rol |
 |-------|-----|
 | models.py | User, SupplierProfile, SellerProfile, DriverProfile |
@@ -117,7 +116,7 @@ LogiFood/
 | utils.py | JWT helpers vb. |
 | admin.py | Profil admin’leri |
 
-### src.products (app label: `products`)
+### apps.products (app label: `products`)
 | Dosya | Rol |
 |-------|-----|
 | models.py | Category, Product |
@@ -129,7 +128,7 @@ LogiFood/
 | admin.py | CategoryAdmin, ProductAdmin |
 | management/commands/ | load_categories |
 
-### src.orders (app label: `orders`)
+### apps.orders (app label: `orders`)
 | Dosya | Rol |
 |-------|-----|
 | models.py | Deal, DealItem, RequestToDriver, Delivery, DeliveryItem |
@@ -145,7 +144,7 @@ LogiFood/
 
 ```
 /api/
-├── auth/                    (src.users)
+├── auth/                    (apps.users)
 │   ├── register/
 │   ├── login/
 │   ├── logout/
@@ -153,12 +152,12 @@ LogiFood/
 │   ├── profile/role/
 │   ├── change-password/
 │   └── toggle-availability/
-├── products/                (src.products)
+├── products/                (apps.products)
 │   ├── categories/          (ViewSet)
 │   ├── my-products/        (ViewSet, supplier’ın ürünleri)
 │   ├── items/               (ürün listesi/detay; eskiden products/products)
 │   └── items/<id>/
-├── orders/                  (src.orders)
+├── orders/                  (apps.orders)
 │   ├── deals/               (ViewSet)
 │   ├── driver-requests/    (ViewSet)
 │   ├── deliveries/          (ViewSet)
@@ -179,12 +178,12 @@ LogiFood/
 ```
 TimeStampedModel (apps.core)
     │
-    ├── User (src.users) ─── SupplierProfile, SellerProfile, DriverProfile
+    ├── User (apps.users) ─── SupplierProfile, SellerProfile, DriverProfile
     │
-    ├── Category, Product (src.products)
+    ├── Category, Product (apps.products)
     │       Product ──► SupplierProfile, Category
     │
-    └── Deal, DealItem, RequestToDriver, Delivery, DeliveryItem (src.orders)
+    └── Deal, DealItem, RequestToDriver, Delivery, DeliveryItem (apps.orders)
             Deal ──► SellerProfile, SupplierProfile, users.DriverProfile, delivery_count, delivery_handler
             DealItem ──► Deal, Product
             RequestToDriver ──► Deal, DriverProfile
@@ -197,7 +196,7 @@ TimeStampedModel (apps.core)
 ## 6. Tespit Edilen Gariplikler / Tutarsızlıklar
 
 ### 6.1 İki kök paket: `apps` vs `src`
-- **Durum:** Domain modülleri `src.*`, paylaşılan altyapı `apps.core`.
+- **Durum:** Tek kök `apps/`: core, users, products, orders hepsi apps altında.
 - **Gariplik:** Proje hem `apps` hem `src` kullanıyor; tek kök (ör. hepsi `src` veya hepsi `apps`) daha tutarlı olur.
 
 ### 6.2 Products URL’de isim tekrarı
@@ -207,11 +206,11 @@ TimeStampedModel (apps.core)
 - **Durum:** `load_categories`, `load_sample_data`, `load_dev_data` hepsi apps.core’da (load_categories products’tan core’a taşındı).
 
 ### 6.4 Cache sadece products’ta
-- **Durum:** `apps.core.cache` kullanımı: sadece `src.products` (services, views, signals).
+- **Durum:** `apps.core.cache` kullanımı: sadece `apps.products` (services, views, signals).
 - **Gariplik:** Orders/users tarafında cache yok. Bilinçli ise dokümante etmek, değilse orders için de (ör. discovery/supplier listesi) cache düşünülebilir.
 
 ### 6.5 Sadece products’ta signals
-- **Durum:** `signals.py` yalnızca src.products’ta (cache invalidate).
+- **Durum:** `signals.py` yalnızca apps.products’ta (cache invalidate).
 - **Gariplik:** Orders’ta deal/delivery/request lifecycle için signal yok. Şu anki tasarımda büyük ihtimalle bilinçli; ileride domain event / audit log vb. eklenecekse orders için de signal veya event yapısı düşünülebilir.
 
 ### 6.6 Core’da “view” dağınık
@@ -219,7 +218,7 @@ TimeStampedModel (apps.core)
 - **Gariplik:** Küçük de olsa tutarlılık için health view’ı `views.py`’e alınıp urls’te import edilebilir.
 
 ### 6.7 Orders’ta discovery URL’lerinin yeri
-- **Durum:** `suppliers/`, `drivers/`, `available-deliveries/` src.orders altında.
+- **Durum:** `suppliers/`, `drivers/`, `available-deliveries/` apps.orders altında.
 - **Gariplik:** Bunlar kullanıcı “keşif” (discovery) endpoint’leri; konsept olarak users veya ayrı bir “discovery” modülüne de taşınabilir. Şu anki haliyle iş mantığı orders (deal/driver/delivery) ile sıkı bağlı olduğu için orders’ta kalmak da mantıklı; sadece ileride büyürse ayrıştırma düşünülebilir.
 
 ### 6.8 Test dizin isimlendirmesi

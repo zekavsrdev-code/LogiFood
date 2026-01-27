@@ -3,7 +3,7 @@ Tests for User serializers
 """
 import pytest
 from django.contrib.auth import get_user_model
-from src.users.serializers import (
+from apps.users.serializers import (
     UserSerializer,
     UserRegistrationSerializer,
     ChangePasswordSerializer,

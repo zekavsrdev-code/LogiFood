@@ -6,7 +6,7 @@ No direct DB manipulation; all state changes go through the API.
 """
 import pytest
 from rest_framework import status
-from src.orders.models import Deal, Delivery, RequestToDriver
+from apps.orders.models import Deal, Delivery, RequestToDriver
 
 
 def _get_list_data(response, key='data'):
@@ -24,12 +24,11 @@ class TestOrderFlowE2E:
         self, seller_client, supplier_user, product
     ):
         """Flow: Discovery → Create Deal (API only)."""
-        # 1. Seller discovers suppliers (paginated: data.results or direct data)
-        list_resp = seller_client.get('/api/orders/suppliers/')
+        # 1. Seller discovers suppliers (single endpoint + role filter)
+        list_resp = seller_client.get('/api/users/profiles/', {'role': 'SUPPLIER'})
         assert list_resp.status_code == status.HTTP_200_OK
         assert list_resp.data.get('success') is True
-        raw = list_resp.data.get('data')
-        suppliers = raw.get('results', raw) if isinstance(raw, dict) else (raw or [])
+        suppliers = _get_list_data(list_resp)
         supplier_ids = [s['id'] for s in suppliers]
         assert supplier_user.supplier_profile.id in supplier_ids
 
@@ -63,7 +62,7 @@ class TestOrderFlowE2E:
         self, seller_client, deal, product
     ):
         """Flow: Deal (with items) → Complete → List deliveries (API only)."""
-        from src.orders.models import DealItem
+        from apps.orders.models import DealItem
 
         # Ensure deal has item and is in DONE with delivery_count
         deal.status = Deal.Status.DONE
@@ -108,10 +107,10 @@ class TestOrderFlowE2E:
     ):
         """Flow: Supplier lists drivers → Seller creates deal (discovery + deal)."""
         # Supplier discovers available drivers
-        drivers_resp = supplier_client.get('/api/orders/drivers/')
+        drivers_resp = supplier_client.get('/api/users/profiles/', {'role': 'DRIVER'})
         assert drivers_resp.status_code == status.HTTP_200_OK
         assert drivers_resp.data.get('success') is True
-        drivers = drivers_resp.data.get('data', [])
+        drivers = _get_list_data(drivers_resp)
 
         # Seller creates deal (system driver) with same supplier
         create_data = {
@@ -145,7 +144,7 @@ class TestOrderFlowE2E:
         # Driver from fixture has is_available=True by default, so they appear in discovery.
 
         # 1. Supplier lists drivers, get driver_id
-        drivers_resp = supplier_client.get('/api/orders/drivers/')
+        drivers_resp = supplier_client.get('/api/users/profiles/', {'role': 'DRIVER'})
         assert drivers_resp.status_code == status.HTTP_200_OK
         assert drivers_resp.data.get('success') is True
         drivers = _get_list_data(drivers_resp)

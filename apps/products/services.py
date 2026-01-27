@@ -3,7 +3,7 @@ from typing import Optional, List, Dict, Any
 from django.db.models import QuerySet, Q
 
 from .models import Category, Product
-from src.users.models import SupplierProfile
+from apps.users.models import SupplierProfile
 from apps.core.services import BaseService
 from apps.core.cache import cache_get_or_set, cache_key, invalidate_model_cache
 from apps.core.exceptions import BusinessLogicError

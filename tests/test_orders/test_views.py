@@ -3,7 +3,7 @@ import pytest
 from decimal import Decimal
 from django.contrib.auth import get_user_model
 from rest_framework import status
-from src.orders.models import Deal, DealItem, Delivery, DeliveryItem, RequestToDriver
+from apps.orders.models import Deal, DealItem, Delivery, DeliveryItem, RequestToDriver
 
 User = get_user_model()
 
@@ -572,26 +572,8 @@ class TestRequestToDriverViews:
 
 
 @pytest.mark.django_db
-class TestDiscoveryViews:
-    """Test Discovery views"""
-    
-    def test_list_suppliers(self, seller_client, supplier_user):
-        response = seller_client.get('/api/orders/suppliers/')
-        assert response.status_code == status.HTTP_200_OK
-        assert response.data['success'] is True
-    
-    def test_list_suppliers_unauthorized(self, api_client):
-        response = api_client.get('/api/orders/suppliers/')
-        assert response.status_code == status.HTTP_401_UNAUTHORIZED
-    
-    def test_list_drivers(self, supplier_client, driver_user):
-        response = supplier_client.get('/api/orders/drivers/')
-        assert response.status_code == status.HTTP_200_OK
-        assert response.data['success'] is True
-    
-    def test_list_drivers_not_supplier(self, seller_client):
-        response = seller_client.get('/api/orders/drivers/')
-        assert response.status_code == status.HTTP_403_FORBIDDEN
+class TestDeliveryDiscoveryViews:
+    """Test delivery discovery (available-deliveries, accept-delivery). Supplier/driver/seller discovery is under users."""
     
     def test_list_available_deliveries(self, driver_client, delivery):
         delivery.status = Delivery.Status.READY

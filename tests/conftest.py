@@ -113,7 +113,7 @@ def admin_user():
 @pytest.fixture
 def category():
     """Create a test category"""
-    from src.products.models import Category
+    from apps.products.models import Category
     return Category.objects.create(
         name='Test Category',
         slug='test-category',
@@ -125,7 +125,7 @@ def category():
 @pytest.fixture
 def parent_category():
     """Create a parent category"""
-    from src.products.models import Category
+    from apps.products.models import Category
     return Category.objects.create(
         name='Parent Category',
         slug='parent-category',
@@ -137,7 +137,7 @@ def parent_category():
 @pytest.fixture
 def child_category(parent_category):
     """Create a child category"""
-    from src.products.models import Category
+    from apps.products.models import Category
     return Category.objects.create(
         name='Child Category',
         slug='child-category',
@@ -150,7 +150,7 @@ def child_category(parent_category):
 @pytest.fixture
 def product(supplier_user, category):
     """Create a test product"""
-    from src.products.models import Product
+    from apps.products.models import Product
     return Product.objects.create(
         supplier=supplier_user.supplier_profile,
         category=category,
@@ -167,7 +167,7 @@ def product(supplier_user, category):
 @pytest.fixture
 def deal(seller_user, supplier_user, driver_user):
     """Create a test deal"""
-    from src.orders.models import Deal
+    from apps.orders.models import Deal
     return Deal.objects.create(
         seller=seller_user.seller_profile,
         supplier=supplier_user.supplier_profile,
@@ -182,7 +182,7 @@ def deal(seller_user, supplier_user, driver_user):
 @pytest.fixture
 def delivery(deal):
     """Create a test delivery from deal"""
-    from src.orders.models import Delivery, Deal
+    from apps.orders.models import Delivery, Deal
     # Set driver based on delivery_handler
     driver_profile = None
     if deal.delivery_handler == Deal.DeliveryHandler.SYSTEM_DRIVER and deal.driver:
@@ -209,7 +209,7 @@ def delivery(deal):
 @pytest.fixture
 def delivery_item(delivery, product):
     """Create a test delivery item"""
-    from src.orders.models import DeliveryItem
+    from apps.orders.models import DeliveryItem
     return DeliveryItem.objects.create(
         delivery=delivery,
         product=product,
@@ -221,7 +221,7 @@ def delivery_item(delivery, product):
 @pytest.fixture
 def driver_request(deal, driver_user):
     """Create a test driver request"""
-    from src.orders.models import RequestToDriver
+    from apps.orders.models import RequestToDriver
     return RequestToDriver.objects.create(
         deal=deal,
         driver=driver_user.driver_profile,

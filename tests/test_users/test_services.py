@@ -5,7 +5,7 @@ import pytest
 
 pytestmark = pytest.mark.unit
 from django.contrib.auth import get_user_model
-from src.users.services import UserService
+from apps.users.services import UserService
 
 User = get_user_model()
 

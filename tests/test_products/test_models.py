@@ -4,7 +4,7 @@ Tests for Product models
 import pytest
 from decimal import Decimal
 from django.contrib.auth import get_user_model
-from src.products.models import Category, Product
+from apps.products.models import Category, Product
 
 User = get_user_model()
 

@@ -9,9 +9,9 @@ Usage:
 from django.core.management.base import BaseCommand
 from django.contrib.auth import get_user_model
 from decimal import Decimal
-from src.users.models import SupplierProfile, SellerProfile, DriverProfile
-from src.products.models import Category, Product
-from src.orders.models import Deal, DealItem, Delivery, DeliveryItem, RequestToDriver
+from apps.users.models import SupplierProfile, SellerProfile, DriverProfile
+from apps.products.models import Category, Product
+from apps.orders.models import Deal, DealItem, Delivery, DeliveryItem, RequestToDriver
 
 User = get_user_model()
 

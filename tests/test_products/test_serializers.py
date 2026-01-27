@@ -4,8 +4,8 @@ Tests for Product serializers
 import pytest
 from decimal import Decimal
 from django.contrib.auth import get_user_model
-from src.products.models import Category, Product
-from src.products.serializers import (
+from apps.products.models import Category, Product
+from apps.products.serializers import (
     CategorySerializer,
     ProductSerializer,
     ProductCreateSerializer,

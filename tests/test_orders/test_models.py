@@ -3,7 +3,7 @@ import pytest
 from decimal import Decimal
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
-from src.orders.models import Deal, DealItem, Delivery, DeliveryItem, RequestToDriver
+from apps.orders.models import Deal, DealItem, Delivery, DeliveryItem, RequestToDriver
 
 User = get_user_model()
 

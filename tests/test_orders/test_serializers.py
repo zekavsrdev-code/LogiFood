@@ -2,8 +2,8 @@
 import pytest
 from decimal import Decimal
 from django.contrib.auth import get_user_model
-from src.orders.models import Deal, DealItem, Delivery, DeliveryItem
-from src.orders.serializers import (
+from apps.orders.models import Deal, DealItem, Delivery, DeliveryItem
+from apps.orders.serializers import (
     DealSerializer,
     DealCreateSerializer,
     DealStatusUpdateSerializer,
@@ -331,7 +331,7 @@ class TestRequestToDriverSerializer:
     """Test RequestToDriverSerializer"""
     
     def test_request_to_driver_serializer(self, deal, driver_user):
-        from src.orders.models import RequestToDriver
+        from apps.orders.models import RequestToDriver
         request = RequestToDriver.objects.create(
             deal=deal,
             driver=driver_user.driver_profile,

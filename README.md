@@ -24,15 +24,11 @@ LogiFood/
 │       ├── pagination.py   # Custom pagination
 │       ├── filters.py      # Custom filters
 │       └── urls.py         # Core URLs (health check)
-├── src/                     # Application modules
-│   └── users/              # User management module
-│       ├── models.py       # User model
-│       ├── serializers.py  # User serializers
-│       ├── views.py        # User views
-│       ├── urls.py         # User URLs
-│       ├── services.py     # User service layer
-│       ├── utils.py        # User utilities
-│       └── admin.py        # User admin
+├── apps/                    # Application modules (single root)
+│   ├── core/               # Shared base (models, utils, permissions, health)
+│   ├── users/               # User management module
+│   ├── products/           # Category, Product
+│   └── orders/             # Deal, Delivery, RequestToDriver, etc.
 ├── tests/                   # Test suite (layered architecture)
 │   ├── conftest.py         # Shared pytest fixtures
 │   ├── test_users/         # User module tests
@@ -722,7 +718,7 @@ Coverage is maintained through:
 
 ## 📦 Key Features
 
-- ✅ Professional project structure with `src/` for modules
+- ✅ Professional project structure with `apps/` for modules (single root)
 - ✅ Environment-based configuration
 - ✅ Layered architecture (Models, Views, Serializers, Services)
 - ✅ JWT Authentication
@@ -771,34 +767,36 @@ All commands below require the virtual environment to be activated.
 
 ## 📝 Adding New Modules
 
-1. Create a new module in `src/`:
+1. Create a new module in `apps/`:
 ```bash
-mkdir -p src/<module_name>
+mkdir -p apps/<module_name>
 ```
 
 2. Create the module structure:
    - `__init__.py`
-   - `apps.py` - Django app config (set `name = 'src.<module_name>'` and `label = '<module_name>'`)
+   - `apps.py` - Django app config (set `name = 'apps.<module_name>'` and `label = '<module_name>'`)
    - `models.py` - Database models
    - `serializers.py` - Data serialization
    - `views.py` - API views
    - `urls.py` - URL routing
    - `services.py` - Business logic
    - `admin.py` - Admin configuration
-   - `utils.py` - Module utilities
+   - `utils.py` - Module utilities (optional)
 
 3. Add the module to `INSTALLED_APPS` in `config/settings/base.py`:
 ```python
 LOCAL_APPS = [
     'apps.core',
-    'src.users',
-    'src.<module_name>',  # Add your new module
+    'apps.users',
+    'apps.products',
+    'apps.orders',
+    'apps.<module_name>',  # Add your new module
 ]
 ```
 
 4. Include URLs in `config/urls.py`:
 ```python
-path('api/<module_path>/', include('src.<module_name>.urls')),
+path('api/<module_path>/', include('apps.<module_name>.urls')),
 ```
 
 5. Create tests in `tests/test_<module_name>/`:

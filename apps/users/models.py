@@ -1,7 +1,5 @@
 from django.contrib.auth.models import AbstractUser
 from django.db import models
-from django.db.models.signals import post_save
-from django.dispatch import receiver
 from apps.core.models import TimeStampedModel
 
 
@@ -107,25 +105,3 @@ class DriverProfile(TimeStampedModel):
     
     def __str__(self):
         return f"{self.user.username} - {self.get_vehicle_type_display()}"
-
-
-# Signal to create role-based profile
-@receiver(post_save, sender=User)
-def create_user_profile(sender, instance, created, **kwargs):
-    """Create profile based on user role when user is created"""
-    if created:
-        if instance.role == User.Role.SUPPLIER:
-            SupplierProfile.objects.get_or_create(
-                user=instance,
-                defaults={'company_name': instance.username}
-            )
-        elif instance.role == User.Role.SELLER:
-            SellerProfile.objects.get_or_create(
-                user=instance,
-                defaults={'business_name': instance.username}
-            )
-        elif instance.role == User.Role.DRIVER:
-            DriverProfile.objects.get_or_create(
-                user=instance,
-                defaults={'license_number': ''}
-            )

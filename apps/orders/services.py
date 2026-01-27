@@ -5,8 +5,8 @@ from django.db.models import Q
 from rest_framework import status
 
 from .models import Deal, Delivery, DeliveryItem, RequestToDriver
-from src.users.models import SupplierProfile, SellerProfile, DriverProfile
-from src.products.models import Product
+from apps.users.models import SupplierProfile, SellerProfile, DriverProfile
+from apps.products.models import Product
 from apps.core.services import BaseService
 from apps.core.exceptions import BusinessLogicError
 
@@ -545,62 +545,3 @@ class RequestToDriverService(BaseService):
         return pending
 
 
-# ==================== DISCOVERY SERVICE ====================
-
-
-class DiscoveryService:
-    """Service for discovery-related operations"""
-    
-    @staticmethod
-    def get_suppliers_with_product_counts(filters: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
-        """Get suppliers with product counts"""
-        queryset = SupplierProfile.objects.filter(is_active=True).select_related('user')
-        
-        if filters:
-            if 'city' in filters and filters['city']:
-                queryset = queryset.filter(city__icontains=filters['city'])
-            if 'search' in filters:
-                queryset = queryset.filter(
-                    Q(company_name__icontains=filters['search']) |
-                    Q(description__icontains=filters['search'])
-                )
-        
-        suppliers = []
-        for supplier in queryset:
-            suppliers.append({
-                'id': supplier.id,
-                'company_name': supplier.company_name,
-                'city': supplier.city,
-                'description': supplier.description,
-                'product_count': supplier.products.filter(is_active=True).count()
-            })
-        
-        return suppliers
-    
-    @staticmethod
-    def get_available_drivers(filters: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
-        """Get available drivers"""
-        queryset = DriverProfile.objects.filter(
-            is_active=True, 
-            is_available=True
-        ).select_related('user')
-        
-        if filters:
-            if 'city' in filters and filters['city']:
-                queryset = queryset.filter(city__icontains=filters['city'])
-            if 'vehicle_type' in filters:
-                queryset = queryset.filter(vehicle_type=filters['vehicle_type'])
-        
-        drivers = []
-        for driver in queryset:
-            drivers.append({
-                'id': driver.id,
-                'name': driver.user.get_full_name() or driver.user.username,
-                'phone': driver.user.phone_number,
-                'city': driver.city,
-                'vehicle_type': driver.vehicle_type,
-                'vehicle_type_display': driver.get_vehicle_type_display(),
-                'vehicle_plate': driver.vehicle_plate,
-            })
-        
-        return drivers

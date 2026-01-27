@@ -2,12 +2,11 @@
 import pytest
 from decimal import Decimal
 from django.contrib.auth import get_user_model
-from src.orders.models import Deal, Delivery, RequestToDriver
-from src.orders.services import (
+from apps.orders.models import Deal, Delivery, RequestToDriver
+from apps.orders.services import (
     DealService,
     DeliveryService,
     RequestToDriverService,
-    DiscoveryService,
 )
 from apps.core.exceptions import BusinessLogicError
 from rest_framework import status
@@ -133,7 +132,7 @@ class TestDealService:
         assert exc.value.status_code == status.HTTP_400_BAD_REQUEST
     
     def test_complete_deal(self, seller_user, deal, product):
-        from src.orders.models import DealItem
+        from apps.orders.models import DealItem
         DealItem.objects.create(
             deal=deal,
             product=product,
@@ -393,44 +392,4 @@ class TestRequestToDriverService:
         assert exc.value.status_code == status.HTTP_403_FORBIDDEN
 
 
-@pytest.mark.django_db
-class TestDiscoveryService:
-    """Test DiscoveryService"""
-    
-    def test_get_suppliers_with_product_counts(self, supplier_user, product):
-        suppliers = DiscoveryService.get_suppliers_with_product_counts()
-        assert len(suppliers) >= 1
-        supplier_data = next((s for s in suppliers if s['id'] == supplier_user.supplier_profile.id), None)
-        assert supplier_data is not None
-        assert supplier_data['product_count'] >= 1
-    
-    def test_get_suppliers_with_filters(self, supplier_user):
-        if supplier_user.supplier_profile.city:
-            filters = {'city': supplier_user.supplier_profile.city}
-            suppliers = DiscoveryService.get_suppliers_with_product_counts(filters)
-            assert len(suppliers) >= 1
-        else:
-            supplier_user.supplier_profile.city = 'Test City'
-            supplier_user.supplier_profile.save()
-            filters = {'city': 'Test City'}
-            suppliers = DiscoveryService.get_suppliers_with_product_counts(filters)
-            assert len(suppliers) >= 1
-    
-    def test_get_available_drivers(self, driver_user):
-        driver_user.driver_profile.is_available = True
-        driver_user.driver_profile.save()
-        
-        drivers = DiscoveryService.get_available_drivers()
-        assert len(drivers) >= 1
-        driver_data = next((d for d in drivers if d['id'] == driver_user.driver_profile.id), None)
-        assert driver_data is not None
-    
-    def test_get_available_drivers_with_filters(self, driver_user):
-        driver_user.driver_profile.is_available = True
-        if not driver_user.driver_profile.city:
-            driver_user.driver_profile.city = 'Test City'
-        driver_user.driver_profile.save()
-        
-        filters = {'city': driver_user.driver_profile.city}
-        drivers = DiscoveryService.get_available_drivers(filters)
-        assert len(drivers) >= 1
+# Profile list (suppliers/drivers/sellers) under users: UserService.list_profiles + GET /api/users/profiles/?role=

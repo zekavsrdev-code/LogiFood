@@ -19,6 +19,8 @@ from .services import UserService
 from apps.core.serializers import EmptySerializer
 from apps.core.utils import success_response, error_response
 from apps.core.exceptions import BusinessLogicError
+from apps.core.pagination import StandardResultsSetPagination
+from apps.core.permissions import IsSupplier
 
 
 # =============================================================================
@@ -274,3 +276,50 @@ class ToggleAvailabilityView(generics.UpdateAPIView):
                 message=str(e.detail),
                 status_code=e.status_code
             )
+
+
+# =============================================================================
+# PROFILE LIST + CHOICES (filtre ile: role, city, search, vehicle_type)
+# =============================================================================
+
+
+class ProfileListAPIView(generics.ListAPIView):
+    """GET /api/users/profiles/?role=SUPPLIER|SELLER|DRIVER — filtre ile profil listesi."""
+    permission_classes = [IsAuthenticated]
+    pagination_class = StandardResultsSetPagination
+
+    def list(self, request, *args, **kwargs):
+        _role_values = [c[0] for c in User.Role.choices]
+        role = (request.query_params.get("role") or "").strip().upper()
+        if role not in _role_values:
+            return error_response(
+                message=f"Query param 'role' is required and must be one of: {', '.join(_role_values)}",
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
+        if role == User.Role.DRIVER and not request.user.is_supplier:
+            return error_response(
+                message="Only suppliers can list drivers.",
+                status_code=status.HTTP_403_FORBIDDEN,
+            )
+        filters = {}
+        if request.query_params.get("city"):
+            filters["city"] = request.query_params["city"]
+        if request.query_params.get("search"):
+            filters["search"] = request.query_params["search"]
+        if role == User.Role.DRIVER and request.query_params.get("vehicle_type"):
+            filters["vehicle_type"] = request.query_params["vehicle_type"]
+        data = UserService.list_profiles(role, filters)
+        page = self.paginate_queryset(data)
+        if page is not None:
+            paginated = self.get_paginated_response(page)
+            return success_response(data=paginated.data, message="Profiles listed successfully")
+        return success_response(data=data, message="Profiles listed successfully")
+
+
+class ChoicesAPIView(generics.GenericAPIView):
+    """GET /api/users/choices/ — Role, VehicleType vb. seçimler (value/label)."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        from .utils import get_user_choices
+        return success_response(data=get_user_choices(), message="OK")

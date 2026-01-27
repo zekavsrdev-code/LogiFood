@@ -6,7 +6,7 @@ Usage:
     python manage.py load_categories --reset
 """
 from django.core.management.base import BaseCommand
-from src.products.models import Category
+from apps.products.models import Category
 
 
 class Command(BaseCommand):
