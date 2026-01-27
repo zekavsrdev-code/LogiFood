@@ -43,11 +43,18 @@ class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
         """Get categories with cache."""
         cache_key_str = cache_key('categories', 'root', 'active')
         
-        def get_categories():
-            return list(Category.objects.filter(is_active=True, parent__isnull=True).prefetch_related('children'))
+        def get_category_ids():
+            # Cache only the IDs for better performance
+            queryset = Category.objects.filter(is_active=True, parent__isnull=True)
+            return list(queryset.values_list('id', flat=True))
         
-        categories = cache_get_or_set(cache_key_str, get_categories, timeout=600)  # 10 minutes
-        return categories
+        category_ids = cache_get_or_set(cache_key_str, get_category_ids, timeout=600)  # 10 minutes
+        
+        # Convert back to QuerySet for DRF filtering/ordering
+        queryset = Category.objects.filter(id__in=category_ids, is_active=True, parent__isnull=True)
+        queryset = queryset.prefetch_related('children')
+        
+        return queryset
     
     def list(self, request, *args, **kwargs):
         """List all active root categories."""
