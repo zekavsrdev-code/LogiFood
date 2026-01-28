@@ -38,11 +38,14 @@ class DealSerializer(serializers.ModelSerializer):
     driver_name = serializers.SerializerMethodField()
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     delivery_handler_display = serializers.CharField(source='get_delivery_handler_display', read_only=True)
-    total_amount = serializers.SerializerMethodField()
+    goods_total = serializers.SerializerMethodField()
+    delivery_fee = serializers.SerializerMethodField()
+    supplier_delivery_share = serializers.SerializerMethodField()
+    seller_delivery_share = serializers.SerializerMethodField()
     seller_detail = SellerProfileSerializer(source='seller', read_only=True)
     supplier_detail = SupplierProfileSerializer(source='supplier', read_only=True)
     driver_detail = serializers.SerializerMethodField()
-    
+
     class Meta:
         model = Deal
         fields = [
@@ -51,23 +54,36 @@ class DealSerializer(serializers.ModelSerializer):
             'driver', 'driver_name', 'driver_detail',
             'status', 'status_display',
             'delivery_handler', 'delivery_handler_display',
-            'delivery_cost_split', 'delivery_count', 'items', 'total_amount',
+            'delivery_cost_split', 'delivery_count', 'items',
+            'goods_total', 'delivery_fee', 'supplier_delivery_share', 'seller_delivery_share',
             'created_by', 'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'seller', 'supplier', 'delivery_count', 'created_by', 'created_at', 'updated_at']
-    
+
     def get_driver_name(self, obj):
         if obj.driver:
             return obj.driver.user.username
         return None
-    
+
     def get_driver_detail(self, obj):
         if obj.driver:
             return DriverProfileSerializer(obj.driver).data
         return None
-    
-    def get_total_amount(self, obj):
+
+    def get_goods_total(self, obj):
         return obj.calculate_total()
+
+    def get_delivery_fee(self, obj):
+        fee, _, _ = obj.get_delivery_fee_split()
+        return fee
+
+    def get_supplier_delivery_share(self, obj):
+        _, supplier_amt, _ = obj.get_delivery_fee_split()
+        return supplier_amt
+
+    def get_seller_delivery_share(self, obj):
+        _, _, seller_amt = obj.get_delivery_fee_split()
+        return seller_amt
 
 
 class DealCreateSerializer(serializers.Serializer):
@@ -270,14 +286,18 @@ class DealSummarySerializer(serializers.ModelSerializer):
 
 
 class DeliveryItemSerializer(serializers.ModelSerializer):
-    """Delivery Item Serializer"""
+    """Delivery Item Serializer. product is a property (from deal_item); serialize as id."""
+    product = serializers.SerializerMethodField()
     product_name = serializers.CharField(source='product.name', read_only=True)
     total_price = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
-    
+
     class Meta:
         model = DeliveryItem
         fields = ['id', 'product', 'product_name', 'quantity', 'unit_price', 'total_price']
-        read_only_fields = ['id', 'unit_price']
+        read_only_fields = ['id', 'product', 'unit_price']
+
+    def get_product(self, obj):
+        return obj.product.id if obj.product else None
 
 
 class DeliverySerializer(serializers.ModelSerializer):
@@ -303,10 +323,10 @@ class DeliverySerializer(serializers.ModelSerializer):
             'driver_profile', 'driver_name', 'driver_info',
             'driver_phone', 'driver_vehicle_type', 'driver_vehicle_plate', 'driver_license_number',
             'status', 'status_display',
-            'total_amount', 'delivery_address', 'delivery_note',
+            'delivery_address', 'delivery_note',
             'created_by', 'items', 'created_at', 'updated_at'
         ]
-        read_only_fields = ['id', 'deal', 'total_amount', 'created_by', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'deal', 'created_by', 'created_at', 'updated_at']
     
     def get_seller_name(self, obj):
         seller = obj.seller_profile

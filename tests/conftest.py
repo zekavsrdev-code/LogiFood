@@ -158,7 +158,6 @@ def product(supplier_user, category):
         description='Test product description',
         price=Decimal('99.99'),
         unit=Product.Unit.KG,
-        stock=100,
         min_order_quantity=1,
         is_active=True
     )
@@ -208,13 +207,14 @@ def delivery(deal):
 
 @pytest.fixture
 def delivery_item(delivery, product):
-    """Create a test delivery item"""
-    from apps.orders.models import DeliveryItem
+    """Create a test delivery item (needs deal_item from delivery.deal)"""
+    from apps.orders.models import DeliveryItem, DealItem
+    deal_item, _ = DealItem.objects.get_or_create(
+        deal=delivery.deal, product=product,
+        defaults={'quantity': 10, 'unit_price': product.price}
+    )
     return DeliveryItem.objects.create(
-        delivery=delivery,
-        product=product,
-        quantity=5,
-        unit_price=product.price
+        delivery=delivery, deal_item=deal_item, quantity=5
     )
 
 

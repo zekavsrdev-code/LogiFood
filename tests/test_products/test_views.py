@@ -107,7 +107,6 @@ class TestSupplierProductViews:
             'description': 'New product description',
             'price': '50.00',
             'unit': Product.Unit.KG,
-            'stock': 50,
             'min_order_quantity': 1,
             'category': category.id,
             'is_active': True
@@ -136,8 +135,7 @@ class TestSupplierProductViews:
         """Test updating a product"""
         data = {
             'name': 'Updated Product',
-            'price': '75.00',
-            'stock': 100
+            'price': '75.00'
         }
         response = supplier_client.put(f'/api/products/my-products/{product.id}/', data, format='json')
         assert response.status_code == status.HTTP_200_OK

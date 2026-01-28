@@ -165,7 +165,6 @@ class TestDeliveryModel:
         assert delivery.supplier_share == 100
         assert delivery.is_3rd_party_delivery is True
         assert delivery.status == Delivery.Status.ESTIMATED
-        assert delivery.total_amount == Decimal('0.00')
         deal.refresh_from_db()
         assert deal.get_actual_delivery_count() == initial_actual_count + 1
         assert deal.delivery_count == planned_count
@@ -204,17 +203,6 @@ class TestDeliveryModel:
     def test_delivery_str(self, delivery):
         assert 'Delivery #' in str(delivery)
         assert delivery.seller_profile.business_name in str(delivery)
-    
-    def test_delivery_calculate_total(self, delivery, product):
-        DeliveryItem.objects.create(
-            delivery=delivery,
-            product=product,
-            quantity=2,
-            unit_price=product.price
-        )
-        delivery.calculate_total()
-        expected_total = product.price * 2
-        assert delivery.total_amount == expected_total
     
     def test_delivery_status_choices(self, deal):
         delivery = Delivery.objects.create(
@@ -264,37 +252,24 @@ class TestDeliveryItemModel:
     """Test DeliveryItem model"""
     
     def test_create_delivery_item(self, delivery, product):
-        item = DeliveryItem.objects.create(
-            delivery=delivery,
-            product=product,
-            quantity=5,
-            unit_price=product.price
+        deal_item = DealItem.objects.create(
+            deal=delivery.deal, product=product, quantity=10, unit_price=product.price
         )
+        item = DeliveryItem.objects.create(delivery=delivery, deal_item=deal_item, quantity=5)
         assert item.delivery == delivery
         assert item.product == product
         assert item.quantity == 5
         assert item.unit_price == product.price
         assert item.total_price == product.price * 5
-    
+
     def test_delivery_item_total_price(self, delivery, product):
-        item = DeliveryItem.objects.create(
-            delivery=delivery,
-            product=product,
-            quantity=3,
-            unit_price=Decimal('10.50')
+        deal_item = DealItem.objects.create(
+            deal=delivery.deal, product=product, quantity=10, unit_price=Decimal('10.50')
         )
+        item = DeliveryItem.objects.create(delivery=delivery, deal_item=deal_item, quantity=3)
         expected_total = Decimal('10.50') * 3
         assert item.total_price == expected_total
-    
-    def test_delivery_item_auto_unit_price(self, delivery, product):
-        item = DeliveryItem(
-            delivery=delivery,
-            product=product,
-            quantity=2
-        )
-        item.save()
-        assert item.unit_price == product.price
-    
+
     def test_delivery_item_str(self, delivery_item):
         assert str(delivery_item) == f"{delivery_item.product.name} x {delivery_item.quantity}"
 

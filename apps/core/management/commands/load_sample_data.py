@@ -299,7 +299,6 @@ class Command(BaseCommand):
                 'description': 'Premium quality fresh oranges',
                 'price': Decimal('25.50'),
                 'unit': Product.Unit.KG,
-                'stock': 500,
                 'min_order_quantity': 10,
             },
             {
@@ -309,7 +308,6 @@ class Command(BaseCommand):
                 'description': 'Ripe red tomatoes',
                 'price': Decimal('18.00'),
                 'unit': Product.Unit.KG,
-                'stock': 300,
                 'min_order_quantity': 5,
             },
             {
@@ -319,7 +317,6 @@ class Command(BaseCommand):
                 'description': 'Crisp red apples',
                 'price': Decimal('22.00'),
                 'unit': Product.Unit.KG,
-                'stock': 400,
                 'min_order_quantity': 10,
             },
             # Meat Supplier products
@@ -330,7 +327,6 @@ class Command(BaseCommand):
                 'description': 'High quality beef cuts',
                 'price': Decimal('350.00'),
                 'unit': Product.Unit.KG,
-                'stock': 100,
                 'min_order_quantity': 1,
             },
             {
@@ -340,7 +336,6 @@ class Command(BaseCommand):
                 'description': 'Fresh chicken breast',
                 'price': Decimal('85.00'),
                 'unit': Product.Unit.KG,
-                'stock': 200,
                 'min_order_quantity': 1,
             },
             # Dairy Supplier products
@@ -351,7 +346,6 @@ class Command(BaseCommand):
                 'description': 'Whole milk 1L',
                 'price': Decimal('15.50'),
                 'unit': Product.Unit.LITER,
-                'stock': 1000,
                 'min_order_quantity': 10,
             },
             {
@@ -361,7 +355,6 @@ class Command(BaseCommand):
                 'description': 'Traditional white cheese',
                 'price': Decimal('120.00'),
                 'unit': Product.Unit.KG,
-                'stock': 150,
                 'min_order_quantity': 1,
             },
             {
@@ -371,7 +364,6 @@ class Command(BaseCommand):
                 'description': 'Natural yogurt',
                 'price': Decimal('18.00'),
                 'unit': Product.Unit.KG,
-                'stock': 300,
                 'min_order_quantity': 5,
             },
             # More products from Fresh Foods
@@ -382,7 +374,6 @@ class Command(BaseCommand):
                 'description': 'High quality basmati rice',
                 'price': Decimal('45.00'),
                 'unit': Product.Unit.KG,
-                'stock': 200,
                 'min_order_quantity': 5,
             },
         ]
@@ -617,20 +608,15 @@ class Command(BaseCommand):
                     created_by=done_deal.created_by if hasattr(done_deal, 'created_by') and done_deal.created_by else done_deal.seller.user
                 )
                 
-                # Create delivery items from deal items
+                # Create delivery items from deal items (deal_item FK, no product/unit_price)
+                created_by_user = done_deal.created_by if hasattr(done_deal, 'created_by') and done_deal.created_by else done_deal.seller.user
                 for deal_item in done_deal.items.all():
                     DeliveryItem.objects.create(
                         delivery=delivery,
-                        product=deal_item.product,
+                        deal_item=deal_item,
                         quantity=deal_item.quantity,
-                        unit_price=deal_item.unit_price,
-                        created_by=done_deal.created_by if hasattr(done_deal, 'created_by') and done_deal.created_by else done_deal.seller.user
+                        created_by=created_by_user
                     )
-                
-                # Calculate total
-                # Note: delivery_count is now the planned count, not actual count
-                # Actual count is tracked via deal.deliveries.count()
-                delivery.calculate_total()
                 created_deliveries.append(delivery)
                 self.stdout.write(f'  Created: Delivery #{delivery.id} from Deal #{done_deal.id}')
 

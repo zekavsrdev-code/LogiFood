@@ -38,10 +38,10 @@ class DeliveryItemInline(admin.TabularInline):
 
 @admin.register(Delivery)
 class DeliveryAdmin(admin.ModelAdmin):
-    list_display = ['id', 'deal', 'get_seller', 'get_supplier', 'get_supplier_share', 'get_is_3rd_party', 'driver_profile', 'driver_name', 'status', 'total_amount', 'created_at']
+    list_display = ['id', 'deal', 'get_seller', 'get_supplier', 'get_supplier_share', 'get_is_3rd_party', 'driver_profile', 'driver_name', 'status', 'created_at']
     list_filter = ['status', 'created_at']
     search_fields = ['deal__seller__business_name', 'deal__supplier__company_name', 'seller__business_name', 'supplier__company_name', 'driver_name']
-    readonly_fields = ['total_amount', 'created_at', 'updated_at']
+    readonly_fields = ['created_at', 'updated_at']
     inlines = [DeliveryItemInline]
     ordering = ['-created_at']
     
@@ -67,9 +67,9 @@ class DeliveryAdmin(admin.ModelAdmin):
 
 @admin.register(DeliveryItem)
 class DeliveryItemAdmin(admin.ModelAdmin):
-    list_display = ['id', 'delivery', 'product', 'quantity', 'unit_price', 'total_price']
+    list_display = ['id', 'delivery', 'deal_item', 'quantity', 'unit_price', 'total_price']
     list_filter = ['delivery__status']
-    search_fields = ['delivery__id', 'product__name']
+    search_fields = ['delivery__id', 'deal_item__product__name']
     readonly_fields = ['total_price', 'created_at', 'updated_at']
 
 

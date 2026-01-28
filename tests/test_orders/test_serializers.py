@@ -43,7 +43,10 @@ class TestDealSerializer:
         assert 'delivery_cost_split' in data
         assert 'delivery_count' in data
         assert 'items' in data
-        assert 'total_amount' in data
+        assert 'goods_total' in data
+        assert 'delivery_fee' in data
+        assert 'supplier_delivery_share' in data
+        assert 'seller_delivery_share' in data
         assert data['delivery_cost_split'] == 50
         assert data['delivery_count'] == 1
     
@@ -58,7 +61,7 @@ class TestDealSerializer:
         data = serializer.data
         assert len(data['items']) == 1
         assert data['items'][0]['product_name'] == product.name
-        total = Decimal(str(data['total_amount']))
+        total = Decimal(str(data['goods_total']))
         assert total == product.price * 2
     
     def test_deal_serializer_delivery_cost_split(self, seller_user, supplier_user):
@@ -247,7 +250,6 @@ class TestDeliverySerializer:
         assert 'supplier_name' in data
         assert 'status_display' in data
         assert 'items' in data
-        assert 'total_amount' in data
         assert 'supplier_share' in data
         assert 'is_3rd_party_delivery' in data
         assert data['supplier_share'] == 100

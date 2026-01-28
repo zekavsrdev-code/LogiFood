@@ -57,13 +57,11 @@ class TestProductModel:
             description='Test description',
             price=Decimal('99.99'),
             unit=Product.Unit.KG,
-            stock=100,
             min_order_quantity=1
         )
         assert product.name == 'Test Product'
         assert product.price == Decimal('99.99')
         assert product.unit == Product.Unit.KG
-        assert product.stock == 100
         assert product.is_active is True
         assert product.supplier == supplier_user.supplier_profile
     

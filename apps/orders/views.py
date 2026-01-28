@@ -38,7 +38,7 @@ from apps.core.exceptions import BusinessLogicError
 
 # Ordering fields: single source for both OrderingFilter and OpenAPI
 DEAL_ORDERING_FIELDS = ['created_at']
-DELIVERY_ORDERING_FIELDS = ['created_at', 'total_amount']
+DELIVERY_ORDERING_FIELDS = ['created_at']
 REQUEST_ORDERING_FIELDS = ['created_at', 'requested_price']
 
 

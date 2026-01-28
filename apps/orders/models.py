@@ -76,10 +76,27 @@ class Deal(TimeStampedModel):
         return f"Deal #{self.id} - {self.seller.business_name} & {self.supplier.company_name}"
     
     def calculate_total(self):
-        """Calculate total amount from deal items"""
-        total = sum(item.total_price for item in self.items.all())
-        return total
-    
+        """Price 1: total goods value from deal items."""
+        return sum(item.total_price for item in self.items.all())
+
+    def get_delivery_fee_split(self):
+        """
+        Price 2: delivery fee (RequestToDriver.final_price) split by delivery_cost_split.
+        Returns (delivery_fee, supplier_amount, seller_amount) or (None, None, None).
+        delivery_cost_split = % paid by supplier (0=seller all, 100=supplier all, 50=split).
+        """
+        if self.delivery_handler != self.DeliveryHandler.SYSTEM_DRIVER:
+            return None, None, None
+        accepted = self.driver_requests.filter(status='ACCEPTED').first()
+        if not accepted or not accepted.final_price:
+            return None, None, None
+        from decimal import Decimal
+        fee = accepted.final_price
+        pct = Decimal(self.delivery_cost_split) / 100
+        supplier_amount = (fee * pct).quantize(Decimal('0.01'))
+        seller_amount = (fee * (1 - pct)).quantize(Decimal('0.01'))
+        return fee, supplier_amount, seller_amount
+
     def get_actual_delivery_count(self):
         """Get the actual number of deliveries created from this deal"""
         return self.deliveries.count()
@@ -322,7 +339,6 @@ class Delivery(TimeStampedModel):
         help_text='Driver license number'
     )
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.ESTIMATED, verbose_name='Status')
-    total_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0, verbose_name='Total Amount')
     delivery_address = models.TextField(verbose_name='Delivery Address')
     delivery_note = models.TextField(blank=True, null=True, verbose_name='Delivery Note')
     
@@ -411,35 +427,32 @@ class Delivery(TimeStampedModel):
                 'is_system_driver': False
             }
         return None
-    
-    def calculate_total(self):
-        """Calculate delivery total amount"""
-        total = sum(item.total_price for item in self.items.all())
-        self.total_amount = total
-        self.save()
-        return total
 
 
 class DeliveryItem(TimeStampedModel):
-    """Delivery Item Model"""
+    """Delivery line item - links to DealItem for price (no price stored on Delivery/DeliveryItem)."""
     delivery = models.ForeignKey(Delivery, on_delete=models.CASCADE, related_name='items')
-    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='delivery_items')
+    deal_item = models.ForeignKey(
+        'DealItem', on_delete=models.CASCADE, related_name='delivery_items', verbose_name='Deal Item'
+    )
     quantity = models.PositiveIntegerField(verbose_name='Quantity')
-    unit_price = models.DecimalField(max_digits=10, decimal_places=2, verbose_name='Unit Price')
-    
+
     class Meta:
         db_table = 'delivery_items'
         verbose_name = 'Delivery Item'
         verbose_name_plural = 'Delivery Items'
-    
+
     def __str__(self):
-        return f"{self.product.name} x {self.quantity}"
-    
+        return f"{self.deal_item.product.name} x {self.quantity}"
+
+    @property
+    def product(self):
+        return self.deal_item.product
+
+    @property
+    def unit_price(self):
+        return self.deal_item.unit_price
+
     @property
     def total_price(self):
         return self.quantity * self.unit_price
-    
-    def save(self, *args, **kwargs):
-        if not self.unit_price:
-            self.unit_price = self.product.price
-        super().save(*args, **kwargs)

@@ -13,7 +13,7 @@ class CategoryAdmin(admin.ModelAdmin):
 
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
-    list_display = ['name', 'supplier', 'category', 'price', 'stock', 'is_active', 'created_at']
+    list_display = ['name', 'supplier', 'category', 'price', 'is_active', 'created_at']
     list_filter = ['is_active', 'category', 'unit', 'created_at']
     search_fields = ['name', 'description', 'supplier__company_name']
     readonly_fields = ['slug', 'created_at', 'updated_at']

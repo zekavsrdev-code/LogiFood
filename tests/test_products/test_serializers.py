@@ -72,7 +72,6 @@ class TestProductCreateSerializer:
             'description': 'New product description',
             'price': '50.00',
             'unit': Product.Unit.KG,
-            'stock': 50,
             'min_order_quantity': 1,
             'category': category.id,
             'is_active': True

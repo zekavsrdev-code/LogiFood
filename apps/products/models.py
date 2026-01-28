@@ -58,7 +58,6 @@ class Product(TimeStampedModel):
     description = models.TextField(blank=True, null=True, verbose_name='Description')
     price = models.DecimalField(max_digits=10, decimal_places=2, verbose_name='Price')
     unit = models.CharField(max_length=20, choices=Unit.choices, default=Unit.KG, verbose_name='Unit')
-    stock = models.PositiveIntegerField(default=0, verbose_name='Stock')
     min_order_quantity = models.PositiveIntegerField(default=1, verbose_name='Min order quantity')
     image = models.ImageField(upload_to='products/', blank=True, null=True, verbose_name='Product image')
     is_active = models.BooleanField(default=True)

@@ -241,14 +241,8 @@ class DealService(BaseService):
         
         for deal_item in deal.items.all():
             DeliveryItem.objects.create(
-                delivery=delivery,
-                product=deal_item.product,
-                quantity=deal_item.quantity,
-                unit_price=deal_item.unit_price,
-                created_by=user
+                delivery=delivery, deal_item=deal_item, quantity=deal_item.quantity, created_by=user
             )
-        
-        delivery.calculate_total()
         return delivery
     
     @classmethod

@@ -74,7 +74,6 @@ class TestProductService:
             'description': 'New product description',
             'price': Decimal('50.00'),
             'unit': Product.Unit.KG,
-            'stock': 50,
             'min_order_quantity': 1,
             'category': category,
             'is_active': True
