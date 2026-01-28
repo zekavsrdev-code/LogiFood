@@ -10,7 +10,7 @@ class DealItemInline(admin.TabularInline):
 
 @admin.register(Deal)
 class DealAdmin(admin.ModelAdmin):
-    list_display = ['id', 'seller', 'supplier', 'driver', 'delivery_handler', 'delivery_cost_split', 'status', 'delivery_count', 'get_actual_delivery_count', 'created_at']
+    list_display = ['id', 'seller', 'supplier', 'get_driver', 'delivery_handler', 'delivery_cost_split', 'status', 'delivery_count', 'get_actual_delivery_count', 'created_at']
     list_filter = ['status', 'delivery_handler', 'created_at']
     search_fields = ['seller__business_name', 'supplier__company_name']
     inlines = [DealItemInline]
@@ -20,6 +20,15 @@ class DealAdmin(admin.ModelAdmin):
         """Get actual number of deliveries created"""
         return obj.get_actual_delivery_count()
     get_actual_delivery_count.short_description = 'Actual Deliveries'
+    
+    def get_driver(self, obj):
+        """Get driver from accepted RequestToDriver"""
+        if obj.delivery_handler == Deal.DeliveryHandler.SYSTEM_DRIVER:
+            accepted_request = obj.driver_requests.filter(status=RequestToDriver.Status.ACCEPTED).first()
+            if accepted_request and accepted_request.driver:
+                return accepted_request.driver.user.username
+        return None
+    get_driver.short_description = 'Driver'
 
 
 @admin.register(DealItem)

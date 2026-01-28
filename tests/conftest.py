@@ -164,28 +164,32 @@ def product(supplier_user, category):
 
 
 @pytest.fixture
-def deal(seller_user, supplier_user, driver_user):
+def deal(seller_user, supplier_user):
     """Create a test deal"""
     from apps.orders.models import Deal
-    return Deal.objects.create(
+    deal = Deal.objects.create(
         seller=seller_user.seller_profile,
         supplier=supplier_user.supplier_profile,
-        driver=driver_user.driver_profile,
         delivery_handler=Deal.DeliveryHandler.SYSTEM_DRIVER,
         delivery_cost_split=50,  # Default: split equally
         delivery_count=1,  # Default is 1 (each deal must have at least one delivery)
         status=Deal.Status.DEALING
     )
+    # Note: RequestToDriver is not created here to allow tests to create their own
+    return deal
 
 
 @pytest.fixture
 def delivery(deal):
     """Create a test delivery from deal"""
-    from apps.orders.models import Delivery, Deal
-    # Set driver based on delivery_handler
+    from apps.orders.models import Delivery, Deal, RequestToDriver
+    # Set driver based on delivery_handler and accepted RequestToDriver
+    # If no accepted request exists, driver_profile will be None
     driver_profile = None
-    if deal.delivery_handler == Deal.DeliveryHandler.SYSTEM_DRIVER and deal.driver:
-        driver_profile = deal.driver
+    if deal.delivery_handler == Deal.DeliveryHandler.SYSTEM_DRIVER:
+        accepted_request = deal.driver_requests.filter(status=RequestToDriver.Status.ACCEPTED).first()
+        if accepted_request and accepted_request.driver:
+            driver_profile = accepted_request.driver
     
     return Delivery.objects.create(
         deal=deal,
@@ -222,9 +226,13 @@ def delivery_item(delivery, product):
 def driver_request(deal, driver_user):
     """Create a test driver request"""
     from apps.orders.models import RequestToDriver
-    return RequestToDriver.objects.create(
+    # Get or create to avoid unique constraint violations
+    request, created = RequestToDriver.objects.get_or_create(
         deal=deal,
         driver=driver_user.driver_profile,
-        requested_price=Decimal('150.00'),
-        created_by=deal.seller.user
+        defaults={
+            'requested_price': Decimal('150.00'),
+            'created_by': deal.seller.user
+        }
     )
+    return request

@@ -80,7 +80,8 @@ class TestDealService:
         deal = DealService.create_deal(seller_user, validated_data)
         assert deal.delivery_handler == Deal.DeliveryHandler.SELLER
         assert deal.delivery_cost_split == 50
-        assert deal.driver is None
+        # Driver is now in RequestToDriver, not Deal
+        assert deal.driver_requests.filter(status=RequestToDriver.Status.ACCEPTED).count() == 0
     
     def test_update_deal_status(self, seller_user, deal):
         deal.seller_approved = True
@@ -147,18 +148,19 @@ class TestDealService:
     
     def test_assign_driver_to_deal(self, seller_user, deal, driver_user):
         deal.status = Deal.Status.LOOKING_FOR_DRIVER
-        deal.driver = None
         deal.seller_approved = True
         deal.supplier_approved = True
         deal.save()
         
         updated_deal = DealService.assign_driver_to_deal(deal, seller_user, driver_user.driver_profile.id)
-        assert updated_deal.driver == driver_user.driver_profile
+        # Driver is now in RequestToDriver, not Deal
+        accepted_request = updated_deal.driver_requests.filter(status=RequestToDriver.Status.ACCEPTED).first()
+        assert accepted_request is not None
+        assert accepted_request.driver == driver_user.driver_profile
         assert updated_deal.status == Deal.Status.DEALING
     
     def test_request_driver_for_deal(self, seller_user, deal, driver_user):
         deal.status = Deal.Status.LOOKING_FOR_DRIVER
-        deal.driver = None
         deal.delivery_handler = Deal.DeliveryHandler.SYSTEM_DRIVER
         deal.seller_approved = True
         deal.supplier_approved = True
@@ -411,7 +413,10 @@ class TestRequestToDriverService:
         assert request.status == RequestToDriver.Status.ACCEPTED
         
         deal.refresh_from_db()
-        assert deal.driver == driver_user.driver_profile
+        # Driver is now in RequestToDriver, not Deal
+        accepted_request = deal.driver_requests.filter(status=RequestToDriver.Status.ACCEPTED).first()
+        assert accepted_request is not None
+        assert accepted_request.driver == driver_user.driver_profile
     
     def test_reject_request(self, supplier_user, deal, driver_user):
         deal.supplier = supplier_user.supplier_profile

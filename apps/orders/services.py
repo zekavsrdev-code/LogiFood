@@ -2,6 +2,7 @@
 from typing import Optional, List, Dict, Any
 from django.db import transaction
 from django.db.models import Q
+from decimal import Decimal
 from rest_framework import status
 
 from .models import Deal, Delivery, DeliveryItem, RequestToDriver
@@ -24,11 +25,11 @@ class DealService(BaseService):
         if user.is_supplier:
             return cls.model.objects.filter(
                 supplier=user.supplier_profile
-            ).select_related('seller', 'supplier', 'driver')
+            ).select_related('seller', 'supplier')
         elif user.is_seller:
             return cls.model.objects.filter(
                 seller=user.seller_profile
-            ).select_related('seller', 'supplier', 'driver')
+            ).select_related('seller', 'supplier')
         else:
             return cls.model.objects.none()
     
@@ -45,10 +46,9 @@ class DealService(BaseService):
                 id=validated_data.pop('seller_id')
             )
         
+        # Driver assignment is now done via RequestToDriver, not directly on Deal
         if 'driver_id' in validated_data:
-            driver_id = validated_data.pop('driver_id')
-            if driver_id:
-                validated_data['driver'] = DriverProfile.objects.get(id=driver_id)
+            validated_data.pop('driver_id')
     
     @classmethod
     def _validate_delivery_handler(cls, user, delivery_handler: str) -> None:
@@ -76,15 +76,11 @@ class DealService(BaseService):
         
         if delivery_handler != cls.model.DeliveryHandler.SYSTEM_DRIVER:
             validated_data['delivery_cost_split'] = 50
-        if delivery_handler == cls.model.DeliveryHandler.SYSTEM_DRIVER:
-            driver = validated_data.get('driver')
-            validated_data['status'] = (
-                cls.model.Status.DEALING if driver 
-                else cls.model.Status.LOOKING_FOR_DRIVER
-            )
-        else:
-            validated_data['driver'] = None
             validated_data['status'] = cls.model.Status.DEALING
+        else:
+            # For SYSTEM_DRIVER, status is always LOOKING_FOR_DRIVER initially
+            # Driver will be assigned via RequestToDriver
+            validated_data['status'] = cls.model.Status.LOOKING_FOR_DRIVER
     
     @classmethod
     def _create_deal_items(cls, deal: Deal, items_data: List[Dict[str, Any]], user) -> None:
@@ -203,16 +199,51 @@ class DealService(BaseService):
     
     @classmethod
     def assign_driver_to_deal(cls, deal: Deal, user, driver_id: int) -> Deal:
-        """Assign driver to deal with permission check"""
+        """
+        Assign driver to deal with permission check.
+        Note: This method is deprecated. Use request_driver_for_deal instead.
+        For backward compatibility, this creates a RequestToDriver and auto-approves it.
+        """
         cls._check_deal_permission(deal, user)
         
+        if deal.status != Deal.Status.LOOKING_FOR_DRIVER:
+            raise BusinessLogicError(
+                'Deal must be in LOOKING_FOR_DRIVER status to assign driver',
+                status_code=status.HTTP_400_BAD_REQUEST
+            )
+        
+        if deal.delivery_handler != Deal.DeliveryHandler.SYSTEM_DRIVER:
+            raise BusinessLogicError(
+                'Cannot assign driver for 3rd party deliveries',
+                status_code=status.HTTP_400_BAD_REQUEST
+            )
+        
         driver = DriverProfile.objects.get(id=driver_id)
-        deal.driver = driver
         
-        if deal.status == Deal.Status.LOOKING_FOR_DRIVER:
-            deal.status = Deal.Status.DEALING
+        # Check if request already exists
+        request, created = RequestToDriver.objects.get_or_create(
+            deal=deal,
+            driver=driver,
+            defaults={
+                'requested_price': Decimal('0.00'),
+                'status': RequestToDriver.Status.PENDING,
+                'created_by': user
+            }
+        )
         
-        deal.save()
+        if not created and request.status == RequestToDriver.Status.ACCEPTED:
+            raise BusinessLogicError(
+                'Driver is already assigned to this deal',
+                status_code=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Auto-approve for backward compatibility
+        request.supplier_approved = True
+        request.seller_approved = True
+        request.driver_approved = True
+        request.final_price = request.requested_price or Decimal('0.00')
+        request.accept(request.final_price)
+        
         return deal
     
     @classmethod
@@ -232,7 +263,8 @@ class DealService(BaseService):
                 status_code=status.HTTP_400_BAD_REQUEST
             )
         
-        if deal.driver:
+        # Check if there's already an accepted request for this deal
+        if RequestToDriver.objects.filter(deal=deal, status=RequestToDriver.Status.ACCEPTED).exists():
             raise BusinessLogicError(
                 'Driver is already assigned to this deal',
                 status_code=status.HTTP_400_BAD_REQUEST
@@ -279,9 +311,12 @@ class DealService(BaseService):
     
     @classmethod
     def _get_driver_info_for_delivery(cls, deal: Deal) -> Dict[str, Any]:
-        """Get driver information for delivery based on deal"""
-        if deal.delivery_handler == Deal.DeliveryHandler.SYSTEM_DRIVER and deal.driver:
-            return {'driver_profile': deal.driver}
+        """Get driver information for delivery based on deal's accepted RequestToDriver"""
+        if deal.delivery_handler == Deal.DeliveryHandler.SYSTEM_DRIVER:
+            # Get driver from accepted RequestToDriver
+            accepted_request = deal.driver_requests.filter(status=RequestToDriver.Status.ACCEPTED).first()
+            if accepted_request and accepted_request.driver:
+                return {'driver_profile': accepted_request.driver}
         return {'driver_profile': None}
     
     @classmethod

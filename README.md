@@ -366,9 +366,9 @@ This project uses **Django ORM** (Object-Relational Mapping) for all database op
 **DriverProfile**
 - OneToOne with User
 - **Relationships**:
-  - OneToMany → `Deal` (driver.deals)
   - OneToMany → `Delivery` (driver_profile.deliveries)
-  - OneToMany → `RequestToDriver` (driver.requests)
+  - OneToMany → `RequestToDriver` (driver.driver_requests)
+  - **Note**: Driver information for deals is stored in `RequestToDriver`, not directly on `Deal`
 
 #### Product Models
 
@@ -392,10 +392,10 @@ This project uses **Django ORM** (Object-Relational Mapping) for all database op
 - **Relationships**:
   - ManyToOne → `SellerProfile` (deal.seller)
   - ManyToOne → `SupplierProfile` (deal.supplier)
-  - ManyToOne → `DriverProfile` (deal.driver, nullable)
   - OneToMany → `DealItem` (deal.items)
   - OneToMany → `Delivery` (deal.deliveries)
-  - OneToMany → `RequestToDriver` (deal.requests)
+  - OneToMany → `RequestToDriver` (deal.driver_requests)
+
 
 **DealItem**
 - Items within a Deal
@@ -422,6 +422,7 @@ This project uses **Django ORM** (Object-Relational Mapping) for all database op
   - ManyToOne → `Deal` (request.deal)
   - ManyToOne → `DriverProfile` (request.driver)
   - Unique constraint: One request per driver per deal
+- **Note**: When a `RequestToDriver` is accepted (status=ACCEPTED), the driver information is used for creating deliveries. Driver information is no longer stored directly on `Deal` model.
 
 ### Database Relationships Diagram
 
@@ -430,15 +431,13 @@ User (1) ──(1:1)── SupplierProfile (1) ──(1:N)── Product
                     │
                     └──(1:N)── Deal ──(1:N)── Delivery
                                       │
-                                      └──(1:N)── RequestToDriver
+                                      └──(1:N)── RequestToDriver ──(N:1)── DriverProfile
 
 User (1) ──(1:1)── SellerProfile (1) ──(1:N)── Deal
 
-User (1) ──(1:1)── DriverProfile (1) ──(1:N)── Deal
+User (1) ──(1:1)── DriverProfile (1) ──(1:N)── Delivery
                     │
-                    ├──(1:N)── Delivery
-                    │
-                    └──(1:N)── RequestToDriver
+                    └──(1:N)── RequestToDriver ──(N:1)── Deal
 
 Category (self-referential)
     │
@@ -451,7 +450,8 @@ Django ORM provides several optimization techniques used in this project:
 
 1. **select_related()**: For ForeignKey and OneToOne relationships
    ```python
-   Deal.objects.select_related('seller', 'supplier', 'driver')
+   Deal.objects.select_related('seller', 'supplier')
+   # Driver information is accessed via RequestToDriver: deal.driver_requests.filter(status='ACCEPTED').first()
    ```
 
 2. **prefetch_related()**: For ManyToMany and reverse ForeignKey relationships
@@ -566,11 +566,16 @@ Authorization: Bearer <access_token>
 | GET/PUT/DELETE | `/api/orders/deals/<id>/` | Deal detail/update/delete |
 | POST | `/api/orders/deals/<id>/approve/` | Approve deal |
 | PUT | `/api/orders/deals/<id>/update_status/` | Update deal status |
+| PUT | `/api/orders/deals/<id>/assign_driver/` | Assign driver to deal (creates and auto-approves RequestToDriver) |
+| PUT | `/api/orders/deals/<id>/request_driver/` | Request driver for deal (creates RequestToDriver) |
+| POST | `/api/orders/deals/<id>/complete/` | Complete deal and create deliveries |
 | GET/POST | `/api/orders/driver-requests/` | Driver request list/create |
 | GET/PUT | `/api/orders/driver-requests/<id>/` | Driver request detail/update |
 | POST | `/api/orders/driver-requests/<id>/approve/` | Approve driver request |
 | GET | `/api/orders/deliveries/` | Delivery list |
 | GET | `/api/orders/deliveries/<id>/` | Delivery detail |
+| PUT | `/api/orders/deliveries/<id>/update_status/` | Update delivery status |
+| PUT | `/api/orders/deliveries/<id>/assign_driver/` | Assign driver to delivery (supplier only) |
 
 ### Discovery Endpoints
 | Method | URL | Description |

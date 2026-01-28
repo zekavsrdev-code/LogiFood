@@ -131,14 +131,14 @@ class TestDealModel:
         deal = Deal.objects.create(
             seller=seller_user.seller_profile,
             supplier=supplier_user.supplier_profile,
-            driver=driver_user.driver_profile,
             delivery_handler=Deal.DeliveryHandler.SYSTEM_DRIVER,
             delivery_cost_split=60,
             status=Deal.Status.DEALING
         )
         assert deal.delivery_handler == Deal.DeliveryHandler.SYSTEM_DRIVER
         assert deal.delivery_cost_split == 60
-        assert deal.driver == driver_user.driver_profile
+        # Driver is now in RequestToDriver, not Deal
+        assert deal.driver_requests.filter(status=RequestToDriver.Status.ACCEPTED).count() == 0
     
     def test_deal_delivery_cost_split_boundary_values(self, seller_user, supplier_user):
         deal1 = Deal.objects.create(
@@ -400,7 +400,10 @@ class TestRequestToDriverModel:
         assert request.final_price == Decimal('150.00')
         
         deal.refresh_from_db()
-        assert deal.driver == driver_user.driver_profile
+        # Driver info is now in RequestToDriver, not Deal
+        accepted_request = deal.driver_requests.filter(status=RequestToDriver.Status.ACCEPTED).first()
+        assert accepted_request is not None
+        assert accepted_request.driver == driver_user.driver_profile
         assert deal.status == Deal.Status.DEALING
     
     def test_accept_not_fully_approved(self, deal, driver_user):

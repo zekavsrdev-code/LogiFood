@@ -400,10 +400,9 @@ class Command(BaseCommand):
             {
                 'seller': created_sellers[0],
                 'supplier': created_suppliers[0],
-                'driver': created_drivers[0],
                 'delivery_handler': Deal.DeliveryHandler.SYSTEM_DRIVER,
                 'delivery_cost_split': 50,  # Split equally
-                'status': Deal.Status.DEALING,
+                'status': Deal.Status.LOOKING_FOR_DRIVER,  # Will have driver assigned via RequestToDriver
                 'items': [
                     {'product': created_products[0], 'quantity': 50},  # Oranges
                     {'product': created_products[1], 'quantity': 30},  # Tomatoes
@@ -412,7 +411,6 @@ class Command(BaseCommand):
             {
                 'seller': created_sellers[1],
                 'supplier': created_suppliers[1],
-                'driver': None,
                 'delivery_handler': Deal.DeliveryHandler.SUPPLIER,  # Supplier handles delivery (3rd party)
                 'delivery_cost_split': 50,  # Not used for 3rd party, but set to default
                 'status': Deal.Status.DEALING,
@@ -424,7 +422,6 @@ class Command(BaseCommand):
             {
                 'seller': created_sellers[2],
                 'supplier': created_suppliers[2],
-                'driver': None,  # No driver initially - will be requested
                 'delivery_handler': Deal.DeliveryHandler.SYSTEM_DRIVER,
                 'delivery_cost_split': 50,  # Split equally
                 'status': Deal.Status.LOOKING_FOR_DRIVER,  # Looking for driver
@@ -436,7 +433,6 @@ class Command(BaseCommand):
             {
                 'seller': created_sellers[0],
                 'supplier': created_suppliers[1],
-                'driver': created_drivers[2],
                 'delivery_handler': Deal.DeliveryHandler.SYSTEM_DRIVER,
                 'delivery_cost_split': 100,  # Supplier pays all
                 'status': Deal.Status.DONE,
@@ -447,7 +443,6 @@ class Command(BaseCommand):
             {
                 'seller': created_sellers[1],
                 'supplier': created_suppliers[0],
-                'driver': None,
                 'delivery_handler': Deal.DeliveryHandler.SYSTEM_DRIVER,
                 'delivery_cost_split': 0,  # Seller pays all
                 'status': Deal.Status.LOOKING_FOR_DRIVER,  # Looking for driver
@@ -491,8 +486,8 @@ class Command(BaseCommand):
         for deal in looking_for_driver_deals:
             # Create requests to different drivers
             for driver in created_drivers:
-                # Skip if driver is already assigned to this deal
-                if deal.driver == driver:
+                # Check if there's already an accepted request for this deal
+                if RequestToDriver.objects.filter(deal=deal, status=RequestToDriver.Status.ACCEPTED).exists():
                     continue
                 
                 # Create request with different prices based on deal
@@ -534,12 +529,7 @@ class Command(BaseCommand):
                 request2.supplier_approved = True
                 request2.seller_approved = True
                 request2.final_price = request2.requested_price
-                request2.status = RequestToDriver.Status.ACCEPTED
-                request2.save()
-                # Assign driver to deal
-                request2.deal.driver = request2.driver
-                request2.deal.status = Deal.Status.DEALING
-                request2.deal.save()
+                request2.accept(request2.final_price)
                 self.stdout.write(f'  Updated: Request #{request2.id} - All parties approved, driver assigned to deal')
             
             # Third request: Partial approval (only supplier approved)
@@ -560,7 +550,7 @@ class Command(BaseCommand):
             # Check if deal is DONE and no deliveries have been created yet
             # delivery_count is the planned count (default is 1), so we check actual count
             if done_deal.status == Deal.Status.DONE and done_deal.deliveries.count() == 0:
-                # Get driver information from deal
+                # Get driver information from accepted RequestToDriver
                 driver_profile = None
                 driver_name = None
                 driver_phone = None
@@ -568,13 +558,15 @@ class Command(BaseCommand):
                 driver_vehicle_plate = None
                 driver_license_number = None
                 
-                if done_deal.driver:
-                    driver_profile = done_deal.driver
-                    driver_name = done_deal.driver.user.get_full_name() or done_deal.driver.user.username
-                    driver_phone = done_deal.driver.user.phone_number
-                    driver_vehicle_type = done_deal.driver.vehicle_type
-                    driver_vehicle_plate = done_deal.driver.vehicle_plate
-                    driver_license_number = done_deal.driver.license_number
+                if done_deal.delivery_handler == Deal.DeliveryHandler.SYSTEM_DRIVER:
+                    accepted_request = done_deal.driver_requests.filter(status=RequestToDriver.Status.ACCEPTED).first()
+                    if accepted_request and accepted_request.driver:
+                        driver_profile = accepted_request.driver
+                        driver_name = accepted_request.driver.user.get_full_name() or accepted_request.driver.user.username
+                        driver_phone = accepted_request.driver.user.phone_number
+                        driver_vehicle_type = accepted_request.driver.vehicle_type
+                        driver_vehicle_plate = accepted_request.driver.vehicle_plate
+                        driver_license_number = accepted_request.driver.license_number
                 
                 # Get delivery address and note from deal data (stored separately for sample data)
                 delivery_address = '30 Harbor St, Izmir'  # From deal data

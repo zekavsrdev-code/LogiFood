@@ -30,15 +30,6 @@ class Deal(TimeStampedModel):
         related_name='deals',
         verbose_name='Supplier'
     )
-    driver = models.ForeignKey(
-        'users.DriverProfile',
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name='deals',
-        verbose_name='Driver',
-        help_text='System driver assigned to this deal (only used when delivery_handler is SYSTEM_DRIVER)'
-    )
     status = models.CharField(
         max_length=30,
         choices=Status.choices,
@@ -134,6 +125,7 @@ class DealItem(TimeStampedModel):
         db_table = 'deal_items'
         verbose_name = 'Deal Item'
         verbose_name_plural = 'Deal Items'
+        ordering = ['id']  # Ensure consistent ordering for pagination
     
     def __str__(self):
         return f"{self.product.name} x {self.quantity}"
@@ -265,7 +257,7 @@ class RequestToDriver(TimeStampedModel):
         return self.supplier_approved and self.seller_approved and self.driver_approved
     
     def accept(self, final_price):
-        """Accept the request and assign driver to deal"""
+        """Accept the request"""
         if not self.is_fully_approved():
             raise ValueError("Request must be fully approved before acceptance")
         
@@ -273,8 +265,7 @@ class RequestToDriver(TimeStampedModel):
         self.final_price = final_price
         self.save()
         
-        # Assign driver to deal
-        self.deal.driver = self.driver
+        # Update deal status to DEALING (driver info is now in RequestToDriver, not Deal)
         self.deal.status = Deal.Status.DEALING
         self.deal.save()
         

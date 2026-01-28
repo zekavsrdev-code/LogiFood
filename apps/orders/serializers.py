@@ -71,7 +71,7 @@ class DealSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'seller', 'seller_name', 'seller_detail',
             'supplier', 'supplier_name', 'supplier_detail',
-            'driver', 'driver_name', 'driver_detail',
+            'driver_name', 'driver_detail',
             'status', 'status_display',
             'delivery_handler', 'delivery_handler_display',
             'delivery_cost_split', 'delivery_count', 'items',
@@ -82,13 +82,19 @@ class DealSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'seller', 'supplier', 'delivery_count', 'seller_approved', 'supplier_approved', 'created_by', 'created_at', 'updated_at']
 
     def get_driver_name(self, obj):
-        if obj.driver:
-            return obj.driver.user.username
+        """Get driver name from accepted RequestToDriver"""
+        if obj.delivery_handler == Deal.DeliveryHandler.SYSTEM_DRIVER:
+            accepted_request = obj.driver_requests.filter(status=RequestToDriver.Status.ACCEPTED).first()
+            if accepted_request and accepted_request.driver:
+                return accepted_request.driver.user.username
         return None
 
     def get_driver_detail(self, obj):
-        if obj.driver:
-            return DriverProfileSerializer(obj.driver).data
+        """Get driver detail from accepted RequestToDriver"""
+        if obj.delivery_handler == Deal.DeliveryHandler.SYSTEM_DRIVER:
+            accepted_request = obj.driver_requests.filter(status=RequestToDriver.Status.ACCEPTED).first()
+            if accepted_request and accepted_request.driver:
+                return DriverProfileSerializer(accepted_request.driver).data
         return None
 
     def get_goods_total(self, obj):
@@ -118,7 +124,6 @@ class DealCreateSerializer(serializers.Serializer):
     """Deal Creation Serializer - For sellers or suppliers"""
     supplier_id = serializers.IntegerField(required=False)
     seller_id = serializers.IntegerField(required=False)
-    driver_id = serializers.IntegerField(required=False, allow_null=True)
     delivery_handler = serializers.ChoiceField(
         choices=Deal.DeliveryHandler.choices,
         default=Deal.DeliveryHandler.SYSTEM_DRIVER,
@@ -174,14 +179,6 @@ class DealCreateSerializer(serializers.Serializer):
                 raise serializers.ValidationError("Seller not found.")
         return value
     
-    def validate_driver_id(self, value):
-        if value:
-            try:
-                DriverProfile.objects.get(id=value, is_active=True)
-            except DriverProfile.DoesNotExist:
-                raise serializers.ValidationError("Driver not found.")
-        return value
-    
     def validate_items(self, value):
         for item in value:
             if 'product_id' not in item or 'quantity' not in item:
@@ -201,7 +198,6 @@ class DealCreateSerializer(serializers.Serializer):
             seller_profile = SellerProfile.objects.get(id=validated_data['seller_id'])
         
         # Create deal
-        driver_id = validated_data.get('driver_id')
         delivery_handler = validated_data.get('delivery_handler', Deal.DeliveryHandler.SYSTEM_DRIVER)
         delivery_cost_split = validated_data.get('delivery_cost_split', 50)
         
@@ -214,20 +210,15 @@ class DealCreateSerializer(serializers.Serializer):
         # If delivery_handler is not SYSTEM_DRIVER, delivery_cost_split should be 50 (default, not used)
         if delivery_handler != Deal.DeliveryHandler.SYSTEM_DRIVER:
             delivery_cost_split = 50
-        
-        # If delivery_handler is SYSTEM_DRIVER but no driver_id provided, set status to LOOKING_FOR_DRIVER
-        # If delivery_handler is SUPPLIER or SELLER, driver_id should be None
-        if delivery_handler == Deal.DeliveryHandler.SYSTEM_DRIVER:
-            status = Deal.Status.DEALING if driver_id else Deal.Status.LOOKING_FOR_DRIVER
-        else:
-            # For 3rd party deliveries, driver_id should be None
-            driver_id = None
             status = Deal.Status.DEALING
+        else:
+            # For SYSTEM_DRIVER, status is always LOOKING_FOR_DRIVER initially
+            # Driver will be assigned via RequestToDriver
+            status = Deal.Status.LOOKING_FOR_DRIVER
         
         deal = Deal.objects.create(
             seller=seller_profile,
             supplier=supplier,
-            driver_id=driver_id,
             delivery_handler=delivery_handler,
             delivery_cost_split=delivery_cost_split,
             status=status

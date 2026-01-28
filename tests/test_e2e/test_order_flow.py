@@ -237,7 +237,7 @@ class TestOrderFlowE2E:
         )
         assert sel_approve.status_code == status.HTTP_200_OK
 
-        # 10. Driver approves (last → status ACCEPTED, deal.driver set)
+        # 10. Driver approves (last → status ACCEPTED, driver assigned via RequestToDriver)
         drv_approve = driver_client.put(
             f'/api/orders/driver-requests/{request_id}/approve/',
             {'final_price': '150.00'},
@@ -245,11 +245,13 @@ class TestOrderFlowE2E:
         )
         assert drv_approve.status_code == status.HTTP_200_OK
 
-        # 11. Verify: deal has driver and request is ACCEPTED
+        # 11. Verify: deal has driver (from RequestToDriver) and request is ACCEPTED
         deal_resp = seller_client.get(f'/api/orders/deals/{deal_id}/')
         assert deal_resp.status_code == status.HTTP_200_OK
         deal_data = deal_resp.data.get('data', {})
-        assert deal_data.get('driver') == driver_id
+        # Driver info is now in driver_detail, not driver field
+        assert deal_data.get('driver_detail') is not None
+        assert deal_data.get('driver_detail', {}).get('id') == driver_id
 
         detail_resp = driver_client.get(f'/api/orders/driver-requests/{request_id}/')
         assert detail_resp.status_code == status.HTTP_200_OK

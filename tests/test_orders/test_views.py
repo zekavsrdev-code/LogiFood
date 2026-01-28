@@ -127,12 +127,11 @@ class TestDealViews:
     
     def test_assign_driver_to_deal(self, seller_client, deal, driver_user):
         deal.status = Deal.Status.LOOKING_FOR_DRIVER
-        deal.driver = None
         deal.seller_approved = True
         deal.supplier_approved = True
         deal.save()
         
-        data = {'driver_id': driver_user.driver_profile.id, 'requested_price': '150.00'}
+        data = {'driver_id': driver_user.driver_profile.id}
         response = seller_client.put(
             f'/api/orders/deals/{deal.id}/assign_driver/',
             data,
@@ -141,12 +140,14 @@ class TestDealViews:
         assert response.status_code == status.HTTP_200_OK
         assert response.data['success'] is True
         deal.refresh_from_db()
-        assert deal.driver == driver_user.driver_profile
+        # Driver is now in RequestToDriver, not Deal
+        accepted_request = deal.driver_requests.filter(status=RequestToDriver.Status.ACCEPTED).first()
+        assert accepted_request is not None
+        assert accepted_request.driver == driver_user.driver_profile
         assert deal.status == Deal.Status.DEALING
     
     def test_request_driver_for_deal(self, seller_client, deal, driver_user):
         deal.status = Deal.Status.LOOKING_FOR_DRIVER
-        deal.driver = None
         deal.delivery_handler = Deal.DeliveryHandler.SYSTEM_DRIVER
         deal.seller_approved = True
         deal.supplier_approved = True
@@ -166,7 +167,6 @@ class TestDealViews:
     
     def test_request_driver_for_3rd_party_deal(self, seller_client, deal, driver_user):
         deal.status = Deal.Status.LOOKING_FOR_DRIVER
-        deal.driver = None
         deal.delivery_handler = Deal.DeliveryHandler.SUPPLIER
         deal.save()
         
@@ -220,8 +220,21 @@ class TestDealViews:
             assert delivery_data['status'] == Delivery.Status.ESTIMATED
     
     def test_complete_deal_with_delivery_cost_split(self, seller_client, deal, product, driver_user):
+        from apps.orders.models import RequestToDriver
+        # Create an accepted RequestToDriver for this test
+        RequestToDriver.objects.create(
+            deal=deal,
+            driver=driver_user.driver_profile,
+            requested_price=Decimal('150.00'),
+            final_price=Decimal('150.00'),
+            status=RequestToDriver.Status.ACCEPTED,
+            supplier_approved=True,
+            seller_approved=True,
+            driver_approved=True,
+            created_by=deal.seller.user
+        )
+        
         deal.delivery_cost_split = 75
-        deal.driver = driver_user.driver_profile
         deal.delivery_handler = Deal.DeliveryHandler.SYSTEM_DRIVER
         deal.seller_approved = True
         deal.supplier_approved = True
@@ -563,6 +576,8 @@ class TestRequestToDriverViews:
         assert request.driver_approved is True
     
     def test_fully_approved_all_parties(self, supplier_client, seller_client, driver_client, deal, driver_user, supplier_user, seller_user):
+        from apps.orders.models import RequestToDriver
+        
         deal.supplier = supplier_user.supplier_profile
         deal.seller = seller_user.seller_profile
         deal.delivery_handler = Deal.DeliveryHandler.SYSTEM_DRIVER
@@ -611,7 +626,11 @@ class TestRequestToDriverViews:
         assert request.final_price == Decimal('150.00')
         
         deal.refresh_from_db()
-        assert deal.driver == driver_user.driver_profile
+        # Driver is now in RequestToDriver, not Deal
+        from apps.orders.models import RequestToDriver
+        accepted_request = deal.driver_requests.filter(status=RequestToDriver.Status.ACCEPTED).first()
+        assert accepted_request is not None
+        assert accepted_request.driver == driver_user.driver_profile
         assert deal.status == Deal.Status.DEALING
     
     def test_reject_request(self, supplier_client, deal, driver_user, supplier_user):
