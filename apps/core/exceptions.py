@@ -17,8 +17,11 @@ class CustomAPIException(APIException):
         super().__init__(detail, code)
 
 
-class ValidationError(CustomAPIException):
-    """Validation Error"""
+class APIValidationError(CustomAPIException):
+    """
+    API-level validation error. Use when returning 400 from views/serializers.
+    For serializer field validation use rest_framework.serializers.ValidationError.
+    """
     status_code = status.HTTP_400_BAD_REQUEST
     default_detail = 'Validation error occurred.'
 

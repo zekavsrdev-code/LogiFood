@@ -4,7 +4,8 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import extend_schema
 
-from apps.core.schema import openapi_parameters_from_filterset
+from apps.core.schema import openapi_parameters_from_filterset, request_has_list_params
+from apps.core.mixins import SuccessResponseListRetrieveMixin
 from .filters import ProductListFilter, SupplierProductFilter
 from .models import Category, Product
 from .serializers import (
@@ -20,10 +21,15 @@ from apps.core.exceptions import BusinessLogicError
 from apps.core.cache import cache_get_or_set, cache_key
 
 
+# Ordering fields: single source for OpenAPI and OrderingFilter
+PRODUCT_LIST_ORDERING_FIELDS = ["price", "created_at", "name"]
+SUPPLIER_PRODUCT_ORDERING_FIELDS = ["price", "created_at", "name"]
+
+
 # ==================== CATEGORY VIEWS ====================
 
 
-class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
+class CategoryViewSet(SuccessResponseListRetrieveMixin, viewsets.ReadOnlyModelViewSet):
     """Category ViewSet - Read-only operations"""
     queryset = Category.objects.filter(is_active=True, parent__isnull=True)
     serializer_class = CategorySerializer
@@ -32,13 +38,13 @@ class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
     search_fields = ['name', 'description']
     ordering_fields = ['name', 'created_at']
     ordering = ['name']
-    
+    list_success_message = 'Categories listed successfully'
+
     def get_queryset(self):
         return CategoryService.get_active_root_categories()
     
     def list(self, request, *args, **kwargs):
-        response = super().list(request, *args, **kwargs)
-        return success_response(data=response.data, message='Categories listed successfully')
+        return super().list(request, *args, **kwargs)
     
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
@@ -49,30 +55,27 @@ class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
 # ==================== PRODUCT VIEWS ====================
 
 
-@extend_schema(parameters=openapi_parameters_from_filterset(ProductListFilter))
-class ProductListView(generics.ListAPIView):
+@extend_schema(
+    parameters=openapi_parameters_from_filterset(
+        ProductListFilter, ordering_fields=PRODUCT_LIST_ORDERING_FIELDS
+    )
+)
+class ProductListView(SuccessResponseListRetrieveMixin, generics.ListAPIView):
     """Product list endpoint - Public access. Filters via ProductListFilter (core BaseModelFilterSet)."""
     serializer_class = ProductSerializer
     permission_classes = [AllowAny]
     pagination_class = StandardResultsSetPagination
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
     filterset_class = ProductListFilter
-    ordering_fields = ["price", "created_at", "name"]
+    ordering_fields = PRODUCT_LIST_ORDERING_FIELDS
     ordering = ["-created_at"]
+    list_success_message = 'Products listed successfully'
 
     def get_queryset(self):
         return Product.objects.filter(is_active=True).select_related("supplier", "category")
     
     def list(self, request, *args, **kwargs):
-        has_filters = any([
-            request.query_params.get('category__slug'),
-            request.query_params.get('supplier'),
-            request.query_params.get('min_price'),
-            request.query_params.get('max_price'),
-            request.query_params.get('search'),
-        ])
-        
-        if not has_filters:
+        if not request_has_list_params(request, ProductListFilter, extra_param_names=["ordering"]):
             cache_key_str = cache_key('products', 'list', 'active')
             
             def get_products():
@@ -85,10 +88,9 @@ class ProductListView(generics.ListAPIView):
                 return serializer.data
             
             data = cache_get_or_set(cache_key_str, get_products, timeout=300)
-            return success_response(data=data, message='Products listed successfully')
+            return success_response(data=data, message=self.list_success_message)
         
-        response = super().list(request, *args, **kwargs)
-        return success_response(data=response.data, message='Products listed successfully')
+        return super().list(request, *args, **kwargs)
 
 
 class ProductDetailView(generics.RetrieveAPIView):
@@ -110,7 +112,7 @@ class ProductDetailView(generics.RetrieveAPIView):
         return success_response(data=data, message='Product detail')
 
 
-class SupplierProductViewSet(viewsets.ModelViewSet):
+class SupplierProductViewSet(SuccessResponseListRetrieveMixin, viewsets.ModelViewSet):
     """Supplier's product management ViewSet. Filters via SupplierProductFilter (core BaseModelFilterSet)."""
     serializer_class = ProductSerializer
     permission_classes = [IsAuthenticated, IsSupplier]
@@ -118,8 +120,10 @@ class SupplierProductViewSet(viewsets.ModelViewSet):
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_class = SupplierProductFilter
     search_fields = ["name", "description"]
-    ordering_fields = ["price", "created_at", "name"]
+    ordering_fields = SUPPLIER_PRODUCT_ORDERING_FIELDS
     ordering = ["-created_at"]
+    list_success_message = 'Your products listed successfully'
+    retrieve_success_message = 'Product detail'
 
     def get_queryset(self):
         return ProductService.get_supplier_products(self.request.user.supplier_profile)
@@ -144,10 +148,13 @@ class SupplierProductViewSet(viewsets.ModelViewSet):
         instance.is_active = False
         instance.save()
 
-    @extend_schema(parameters=openapi_parameters_from_filterset(SupplierProductFilter))
+    @extend_schema(
+        parameters=openapi_parameters_from_filterset(
+            SupplierProductFilter, ordering_fields=SUPPLIER_PRODUCT_ORDERING_FIELDS
+        )
+    )
     def list(self, request, *args, **kwargs):
-        response = super().list(request, *args, **kwargs)
-        return success_response(data=response.data, message='Your products listed successfully')
+        return super().list(request, *args, **kwargs)
 
     def create(self, request, *args, **kwargs):
         response = super().create(request, *args, **kwargs)

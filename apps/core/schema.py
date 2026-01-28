@@ -2,6 +2,7 @@
 OpenAPI schema helpers. Build parameters from FilterSet classes so Swagger
 shows filter query params without hand-coding @extend_schema(parameters=...).
 """
+from typing import Optional, Sequence
 import django_filters
 from drf_spectacular.utils import OpenApiParameter, OpenApiTypes
 
@@ -19,16 +20,53 @@ def _enum_value(v):
     return str(v)
 
 
-def openapi_parameters_from_filterset(filterset_class):
+def request_has_list_params(request, filterset_class, extra_param_names: Optional[Sequence[str]] = None) -> bool:
+    """
+    Return True if request has any query params that affect list result
+    (filterset fields + optional extra names like 'ordering').
+    Use to decide cache vs full filter path without duplicating param lists.
+    """
+    if getattr(request, "query_params", None) is None:
+        return False
+    qp = request.query_params
+    if filterset_class and hasattr(filterset_class, "base_filters"):
+        for name in filterset_class.base_filters:
+            if qp.get(name) not in (None, ""):
+                return True
+    for name in extra_param_names or []:
+        if qp.get(name) not in (None, ""):
+            return True
+    return False
+
+
+def openapi_parameters_from_filterset(
+    filterset_class,
+    ordering_fields: Optional[Sequence[str]] = None,
+):
     """
     Build a list of OpenApiParameter from a FilterSet's base_filters.
-    Uses each filter's type, required, choices (when applicable), and help_text.
+    Optionally append an 'ordering' param when ordering_fields is given.
     """
     if not filterset_class or not hasattr(filterset_class, "base_filters"):
-        return []
+        params = []
+    else:
+        params = _filterset_to_openapi_params(filterset_class)
+    if ordering_fields:
+        params.append(
+            OpenApiParameter(
+                "ordering",
+                type=OpenApiTypes.STR,
+                required=False,
+                description="Sort by: " + ", ".join(ordering_fields) + " (prefix with - for descending)",
+            )
+        )
+    return params
 
+
+def _filterset_to_openapi_params(filterset_class):
+    """Build OpenApiParameter list from filterset base_filters."""
     params = []
-    for name, f in filterset_class.base_filters.items():
+    for name, f in getattr(filterset_class, "base_filters", {}).items():
         extra = getattr(f, "extra", None) or {}
         required = getattr(f, "required", extra.get("required", False))
         description = extra.get("help_text") or getattr(f, "label", "") or ""
