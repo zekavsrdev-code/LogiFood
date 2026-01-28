@@ -189,7 +189,7 @@ The project runs with Docker Compose (PostgreSQL, Redis, Django):
 2. Copy environment and set credentials (optional; defaults work with `.env.example`):
    ```bash
    cp .env.example .env
-   # Edit .env: DB_PASSWORD, SECRET_KEY, JWT_SECRET_KEY, etc.
+   # Edit .env: DB_PASSWORD, SECRET_KEY, etc.
    ```
 
 3. Start all services:
@@ -473,7 +473,7 @@ Django ORM provides several optimization techniques used in this project:
 
 ## 🔐 Authentication
 
-The project uses JWT (JSON Web Tokens) for authentication. **Email is optional; login is done with username.**
+The project uses Django REST Framework Token Authentication. **Email is optional; login is done with username.**
 
 ### Supplier Registration:
 ```bash
@@ -562,23 +562,23 @@ Authorization: Bearer <access_token>
 ### Order Endpoints
 | Method | URL | Description |
 |--------|-----|-------------|
-| GET/POST | `/api/orders/` | Orders (role-based) |
-| GET | `/api/orders/<id>/` | Order detail |
-| PUT | `/api/orders/<id>/status/` | Update order status |
-| PUT | `/api/orders/<id>/assign-driver/` | Assign driver |
+| GET/POST | `/api/orders/deals/` | Deal list/create |
+| GET/PUT/DELETE | `/api/orders/deals/<id>/` | Deal detail/update/delete |
+| POST | `/api/orders/deals/<id>/approve/` | Approve deal |
+| PUT | `/api/orders/deals/<id>/update_status/` | Update deal status |
+| GET/POST | `/api/orders/driver-requests/` | Driver request list/create |
+| GET/PUT | `/api/orders/driver-requests/<id>/` | Driver request detail/update |
+| POST | `/api/orders/driver-requests/<id>/approve/` | Approve driver request |
+| GET | `/api/orders/deliveries/` | Delivery list |
+| GET | `/api/orders/deliveries/<id>/` | Delivery detail |
 
 ### Discovery Endpoints
 | Method | URL | Description |
 |--------|-----|-------------|
-| GET | `/api/suppliers/` | List suppliers |
-| GET | `/api/drivers/` | List available drivers |
-| GET | `/api/available-orders/` | Available orders for drivers |
-| POST | `/api/accept-order/<id>/` | Driver accept order |
+| GET | `/api/users/profiles/` | List profiles by role (SUPPLIER, SELLER, DRIVER) |
+| GET | `/api/orders/available-deliveries/` | Available deliveries for drivers |
+| POST | `/api/orders/accept-delivery/<id>/` | Driver accept delivery |
 
-### Category Endpoints
-| Method | URL | Description |
-|--------|-----|-------------|
-| GET | `/api/categories/` | List categories |
 
 ## 🧪 Testing Strategy
 
@@ -721,7 +721,7 @@ Coverage is maintained through:
 - ✅ Professional project structure with `apps/` for modules (single root)
 - ✅ Environment-based configuration
 - ✅ Layered architecture (Models, Views, Serializers, Services)
-- ✅ JWT Authentication
+- ✅ Token Authentication (Django REST Framework)
 - ✅ Custom User Model
 - ✅ API Documentation (Swagger/ReDoc)
 - ✅ CORS support
