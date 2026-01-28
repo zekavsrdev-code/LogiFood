@@ -21,15 +21,10 @@ from apps.core.exceptions import BusinessLogicError
 from apps.core.cache import cache_get_or_set, cache_key
 
 
-# Ordering fields: single source for OpenAPI and OrderingFilter
-PRODUCT_LIST_ORDERING_FIELDS = ["price", "created_at", "name"]
-SUPPLIER_PRODUCT_ORDERING_FIELDS = ["price", "created_at", "name"]
-
-
 # ==================== CATEGORY VIEWS ====================
 
 
-class CategoryViewSet(SuccessResponseListRetrieveMixin, viewsets.ReadOnlyModelViewSet):
+class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
     """Category ViewSet - Read-only operations"""
     queryset = Category.objects.filter(is_active=True, parent__isnull=True)
     serializer_class = CategorySerializer
@@ -38,13 +33,13 @@ class CategoryViewSet(SuccessResponseListRetrieveMixin, viewsets.ReadOnlyModelVi
     search_fields = ['name', 'description']
     ordering_fields = ['name', 'created_at']
     ordering = ['name']
-    list_success_message = 'Categories listed successfully'
-
+    
     def get_queryset(self):
         return CategoryService.get_active_root_categories()
     
     def list(self, request, *args, **kwargs):
-        return super().list(request, *args, **kwargs)
+        response = super().list(request, *args, **kwargs)
+        return success_response(data=response.data, message='Categories listed successfully')
     
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
@@ -57,19 +52,19 @@ class CategoryViewSet(SuccessResponseListRetrieveMixin, viewsets.ReadOnlyModelVi
 
 @extend_schema(
     parameters=openapi_parameters_from_filterset(
-        ProductListFilter, ordering_fields=PRODUCT_LIST_ORDERING_FIELDS
+        ProductListFilter,
+        ordering_fields=["price", "created_at", "name"],
     )
 )
-class ProductListView(SuccessResponseListRetrieveMixin, generics.ListAPIView):
+class ProductListView(generics.ListAPIView):
     """Product list endpoint - Public access. Filters via ProductListFilter (core BaseModelFilterSet)."""
     serializer_class = ProductSerializer
     permission_classes = [AllowAny]
     pagination_class = StandardResultsSetPagination
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
     filterset_class = ProductListFilter
-    ordering_fields = PRODUCT_LIST_ORDERING_FIELDS
+    ordering_fields = ["price", "created_at", "name"]
     ordering = ["-created_at"]
-    list_success_message = 'Products listed successfully'
 
     def get_queryset(self):
         return Product.objects.filter(is_active=True).select_related("supplier", "category")
@@ -88,9 +83,10 @@ class ProductListView(SuccessResponseListRetrieveMixin, generics.ListAPIView):
                 return serializer.data
             
             data = cache_get_or_set(cache_key_str, get_products, timeout=300)
-            return success_response(data=data, message=self.list_success_message)
+            return success_response(data=data, message='Products listed successfully')
         
-        return super().list(request, *args, **kwargs)
+        response = super().list(request, *args, **kwargs)
+        return success_response(data=response.data, message='Products listed successfully')
 
 
 class ProductDetailView(generics.RetrieveAPIView):
@@ -112,7 +108,7 @@ class ProductDetailView(generics.RetrieveAPIView):
         return success_response(data=data, message='Product detail')
 
 
-class SupplierProductViewSet(SuccessResponseListRetrieveMixin, viewsets.ModelViewSet):
+class SupplierProductViewSet(viewsets.ModelViewSet):
     """Supplier's product management ViewSet. Filters via SupplierProductFilter (core BaseModelFilterSet)."""
     serializer_class = ProductSerializer
     permission_classes = [IsAuthenticated, IsSupplier]
@@ -120,10 +116,8 @@ class SupplierProductViewSet(SuccessResponseListRetrieveMixin, viewsets.ModelVie
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_class = SupplierProductFilter
     search_fields = ["name", "description"]
-    ordering_fields = SUPPLIER_PRODUCT_ORDERING_FIELDS
+    ordering_fields = ["price", "created_at", "name"]
     ordering = ["-created_at"]
-    list_success_message = 'Your products listed successfully'
-    retrieve_success_message = 'Product detail'
 
     def get_queryset(self):
         return ProductService.get_supplier_products(self.request.user.supplier_profile)
@@ -150,11 +144,12 @@ class SupplierProductViewSet(SuccessResponseListRetrieveMixin, viewsets.ModelVie
 
     @extend_schema(
         parameters=openapi_parameters_from_filterset(
-            SupplierProductFilter, ordering_fields=SUPPLIER_PRODUCT_ORDERING_FIELDS
+            SupplierProductFilter, ordering_fields=['price', 'created_at', 'name']
         )
     )
     def list(self, request, *args, **kwargs):
-        return super().list(request, *args, **kwargs)
+        response = super().list(request, *args, **kwargs)
+        return success_response(data=response.data, message='Your products listed successfully')
 
     def create(self, request, *args, **kwargs):
         response = super().create(request, *args, **kwargs)
