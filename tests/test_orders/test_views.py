@@ -75,8 +75,35 @@ class TestDealViews:
         assert response.status_code == status.HTTP_200_OK
         assert response.data['success'] is True
         assert 'delivery_cost_split' in response.data['data']
+        assert 'seller_approved' in response.data['data']
+        assert 'supplier_approved' in response.data['data']
+
+    def test_approve_deal_as_seller(self, seller_client, deal):
+        response = seller_client.post(f'/api/orders/deals/{deal.id}/approve/', {}, format='json')
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data['success'] is True
+        deal.refresh_from_db()
+        assert deal.seller_approved is True
+        assert deal.supplier_approved is False
+
+    def test_approve_deal_as_supplier(self, supplier_client, deal):
+        response = supplier_client.post(f'/api/orders/deals/{deal.id}/approve/', {}, format='json')
+        assert response.status_code == status.HTTP_200_OK
+        deal.refresh_from_db()
+        assert deal.supplier_approved is True
+
+    def test_partial_update_deal(self, seller_client, deal):
+        data = {'delivery_cost_split': 70}
+        response = seller_client.patch(f'/api/orders/deals/{deal.id}/', data, format='json')
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data['success'] is True
+        deal.refresh_from_db()
+        assert deal.delivery_cost_split == 70
     
     def test_update_deal_status(self, seller_client, deal):
+        deal.seller_approved = True
+        deal.supplier_approved = True
+        deal.save()
         data = {'status': Deal.Status.DONE}
         response = seller_client.put(
             f'/api/orders/deals/{deal.id}/update_status/',
@@ -87,10 +114,22 @@ class TestDealViews:
         assert response.data['success'] is True
         deal.refresh_from_db()
         assert deal.status == Deal.Status.DONE
+
+    def test_update_deal_status_requires_both_approvals(self, seller_client, deal):
+        data = {'status': Deal.Status.DONE}
+        response = seller_client.put(
+            f'/api/orders/deals/{deal.id}/update_status/',
+            data,
+            format='json'
+        )
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert 'Both seller and supplier' in response.data.get('message', '')
     
     def test_assign_driver_to_deal(self, seller_client, deal, driver_user):
         deal.status = Deal.Status.LOOKING_FOR_DRIVER
         deal.driver = None
+        deal.seller_approved = True
+        deal.supplier_approved = True
         deal.save()
         
         data = {'driver_id': driver_user.driver_profile.id, 'requested_price': '150.00'}
@@ -109,6 +148,8 @@ class TestDealViews:
         deal.status = Deal.Status.LOOKING_FOR_DRIVER
         deal.driver = None
         deal.delivery_handler = Deal.DeliveryHandler.SYSTEM_DRIVER
+        deal.seller_approved = True
+        deal.supplier_approved = True
         deal.save()
         
         driver_user.driver_profile.is_available = True
@@ -148,7 +189,8 @@ class TestDealViews:
             quantity=2,
             unit_price=product.price
         )
-        
+        deal.seller_approved = True
+        deal.supplier_approved = True
         deal.status = Deal.Status.DONE
         deal.delivery_count = 1
         deal.save()
@@ -181,6 +223,8 @@ class TestDealViews:
         deal.delivery_cost_split = 75
         deal.driver = driver_user.driver_profile
         deal.delivery_handler = Deal.DeliveryHandler.SYSTEM_DRIVER
+        deal.seller_approved = True
+        deal.supplier_approved = True
         deal.status = Deal.Status.DONE
         deal.delivery_count = 1
         deal.save()
@@ -204,6 +248,58 @@ class TestDealViews:
         assert response.status_code == status.HTTP_201_CREATED
         deal.refresh_from_db()
         assert deal.delivery_cost_split == 75
+
+
+@pytest.mark.django_db
+class TestDealItemViews:
+    """Test DealItem views – seller and supplier can create/update/delete; clears other party approval."""
+
+    def test_list_deal_items_as_seller(self, seller_client, deal, product):
+        DealItem.objects.create(deal=deal, product=product, quantity=5, unit_price=product.price)
+        response = seller_client.get('/api/orders/deal-items/')
+        assert response.status_code == status.HTTP_200_OK
+        assert 'results' in response.data or 'data' in response.data
+
+    def test_list_deal_items_as_supplier(self, supplier_client, deal, product):
+        DealItem.objects.create(deal=deal, product=product, quantity=5, unit_price=product.price)
+        response = supplier_client.get('/api/orders/deal-items/')
+        assert response.status_code == status.HTTP_200_OK
+
+    def test_create_deal_item_as_seller(self, seller_client, deal, product):
+        data = {'deal': deal.id, 'product': product.id, 'quantity': 10}
+        response = seller_client.post('/api/orders/deal-items/', data, format='json')
+        assert response.status_code == status.HTTP_201_CREATED
+        deal.refresh_from_db()
+        assert deal.supplier_approved is False
+
+    def test_create_deal_item_as_supplier(self, supplier_client, deal, product):
+        data = {'deal': deal.id, 'product': product.id, 'quantity': 8}
+        response = supplier_client.post('/api/orders/deal-items/', data, format='json')
+        assert response.status_code == status.HTTP_201_CREATED
+        deal.refresh_from_db()
+        assert deal.seller_approved is False
+
+    def test_update_deal_item_clears_other_approval(self, seller_client, deal, product):
+        item = DealItem.objects.create(deal=deal, product=product, quantity=5, unit_price=product.price)
+        deal.supplier_approved = True
+        deal.save()
+        response = seller_client.patch(
+            f'/api/orders/deal-items/{item.id}/',
+            {'quantity': 15},
+            format='json'
+        )
+        assert response.status_code == status.HTTP_200_OK
+        deal.refresh_from_db()
+        assert deal.supplier_approved is False
+
+    def test_delete_deal_item_clears_other_approval(self, supplier_client, deal, product):
+        item = DealItem.objects.create(deal=deal, product=product, quantity=5, unit_price=product.price)
+        deal.seller_approved = True
+        deal.save()
+        response = supplier_client.delete(f'/api/orders/deal-items/{item.id}/')
+        assert response.status_code == status.HTTP_204_NO_CONTENT
+        deal.refresh_from_db()
+        assert deal.seller_approved is False
 
 
 @pytest.mark.django_db

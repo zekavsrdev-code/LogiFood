@@ -26,6 +26,27 @@ class TestDealModel:
         assert deal.status == Deal.Status.DEALING
         assert deal.delivery_count == 1
         assert deal.delivery_cost_split == 50
+        assert deal.seller_approved is False
+        assert deal.supplier_approved is False
+        assert deal.both_parties_approved is False
+
+    def test_deal_both_parties_approved(self, seller_user, supplier_user):
+        deal = Deal.objects.create(
+            seller=seller_user.seller_profile,
+            supplier=supplier_user.supplier_profile,
+            delivery_handler=Deal.DeliveryHandler.SYSTEM_DRIVER,
+            status=Deal.Status.DEALING,
+            seller_approved=False,
+            supplier_approved=False,
+        )
+        assert deal.both_parties_approved is False
+        deal.seller_approved = True
+        deal.save()
+        assert deal.both_parties_approved is False
+        deal.supplier_approved = True
+        deal.save()
+        deal.refresh_from_db()
+        assert deal.both_parties_approved is True
     
     def test_deal_str(self, deal):
         assert 'Deal #' in str(deal)

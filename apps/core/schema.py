@@ -4,6 +4,7 @@ shows filter query params without hand-coding @extend_schema(parameters=...).
 """
 from typing import Optional, Sequence
 import django_filters
+from django.db.utils import DatabaseError
 from drf_spectacular.utils import OpenApiParameter, OpenApiTypes
 
 
@@ -18,6 +19,16 @@ def _enum_value(v):
     if isinstance(v, (str, int, float, bool)):
         return v
     return str(v)
+
+
+def _choices_to_enum(choices):
+    """Return list of enum values from filter choices, or None if DB not ready (e.g. before migrate)."""
+    if not choices:
+        return None
+    try:
+        return [_enum_value(c[0]) for c in choices]
+    except DatabaseError:
+        return None
 
 
 def request_has_list_params(request, filterset_class, extra_param_names: Optional[Sequence[str]] = None) -> bool:
@@ -46,11 +57,15 @@ def openapi_parameters_from_filterset(
     """
     Build a list of OpenApiParameter from a FilterSet's base_filters.
     Optionally append an 'ordering' param when ordering_fields is given.
+    On DB errors (e.g. tables missing at migrate time), returns only ordering param.
     """
     if not filterset_class or not hasattr(filterset_class, "base_filters"):
         params = []
     else:
-        params = _filterset_to_openapi_params(filterset_class)
+        try:
+            params = _filterset_to_openapi_params(filterset_class)
+        except DatabaseError:
+            params = []
     if ordering_fields:
         params.append(
             OpenApiParameter(
@@ -63,6 +78,12 @@ def openapi_parameters_from_filterset(
     return params
 
 
+def _field_uses_queryset(f):
+    """True if filter field uses a model queryset (would hit DB when iterating choices)."""
+    field = getattr(f, "field", None)
+    return field is not None and getattr(field, "queryset", None) is not None
+
+
 def _filterset_to_openapi_params(filterset_class):
     """Build OpenApiParameter list from filterset base_filters."""
     params = []
@@ -72,8 +93,12 @@ def _filterset_to_openapi_params(filterset_class):
         description = extra.get("help_text") or getattr(f, "label", "") or ""
 
         if isinstance(f, django_filters.ChoiceFilter):
-            choices = getattr(f.field, "choices", None) or extra.get("choices") or ()
-            enum = [_enum_value(c[0]) for c in choices] if choices else None
+            # Never iterate choices for model-backed filters (avoids DB at import/migrate time).
+            if _field_uses_queryset(f):
+                enum = None
+            else:
+                choices = getattr(f.field, "choices", None) or extra.get("choices") or ()
+                enum = _choices_to_enum(choices)
             params.append(
                 OpenApiParameter(
                     name,
@@ -84,8 +109,11 @@ def _filterset_to_openapi_params(filterset_class):
                 )
             )
         elif isinstance(f, django_filters.TypedChoiceFilter):
-            choices = getattr(f.field, "choices", None) or extra.get("choices") or ()
-            enum = [_enum_value(c[0]) for c in choices] if choices else None
+            if _field_uses_queryset(f):
+                enum = None
+            else:
+                choices = getattr(f.field, "choices", None) or extra.get("choices") or ()
+                enum = _choices_to_enum(choices)
             params.append(
                 OpenApiParameter(
                     name,
@@ -96,8 +124,11 @@ def _filterset_to_openapi_params(filterset_class):
                 )
             )
         elif isinstance(f, django_filters.MultipleChoiceFilter):
-            choices = getattr(f.field, "choices", None) or extra.get("choices") or ()
-            enum = [_enum_value(c[0]) for c in choices] if choices else None
+            if _field_uses_queryset(f):
+                enum = None
+            else:
+                choices = getattr(f.field, "choices", None) or extra.get("choices") or ()
+                enum = _choices_to_enum(choices)
             params.append(
                 OpenApiParameter(
                     name,

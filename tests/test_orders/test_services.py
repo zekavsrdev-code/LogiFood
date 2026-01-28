@@ -83,10 +83,27 @@ class TestDealService:
         assert deal.driver is None
     
     def test_update_deal_status(self, seller_user, deal):
+        deal.seller_approved = True
+        deal.supplier_approved = True
+        deal.save()
         updated_deal = DealService.update_deal_status(deal, seller_user, Deal.Status.DONE)
         assert updated_deal.status == Deal.Status.DONE
+
+    def test_update_deal_status_requires_both_approvals(self, seller_user, deal):
+        with pytest.raises(BusinessLogicError) as exc:
+            DealService.update_deal_status(deal, seller_user, Deal.Status.DONE)
+        assert exc.value.status_code == status.HTTP_400_BAD_REQUEST
+        assert 'Both seller and supplier' in str(exc.value.detail)
+
+    def test_update_deal_status_looking_for_driver_requires_approvals(self, seller_user, deal):
+        with pytest.raises(BusinessLogicError) as exc:
+            DealService.update_deal_status(deal, seller_user, Deal.Status.LOOKING_FOR_DRIVER)
+        assert exc.value.status_code == status.HTTP_400_BAD_REQUEST
     
     def test_update_deal_status_unauthorized(self, deal):
+        deal.seller_approved = True
+        deal.supplier_approved = True
+        deal.save()
         other_user = User.objects.create_user(
             username='other_user',
             password='pass123',
@@ -95,10 +112,44 @@ class TestDealService:
         with pytest.raises(BusinessLogicError) as exc:
             DealService.update_deal_status(deal, other_user, Deal.Status.DONE)
         assert exc.value.status_code == status.HTTP_403_FORBIDDEN
+
+    def test_approve_deal_seller(self, seller_user, deal):
+        assert deal.seller_approved is False
+        updated = DealService.approve_deal(deal, seller_user)
+        updated.refresh_from_db()
+        assert updated.seller_approved is True
+        assert updated.supplier_approved is False
+
+    def test_approve_deal_supplier(self, supplier_user, deal):
+        assert deal.supplier_approved is False
+        updated = DealService.approve_deal(deal, supplier_user)
+        updated.refresh_from_db()
+        assert updated.supplier_approved is True
+        assert updated.seller_approved is False
+
+    def test_update_deal_clears_other_approval(self, seller_user, supplier_user, deal):
+        deal.supplier_approved = True
+        deal.save()
+        updated = DealService.update_deal(deal, seller_user, delivery_cost_split=60)
+        updated.refresh_from_db()
+        assert updated.delivery_cost_split == 60
+        assert updated.supplier_approved is False
+        assert updated.seller_approved is False
+
+    def test_update_deal_non_dealing_rejected(self, seller_user, deal):
+        deal.status = Deal.Status.LOOKING_FOR_DRIVER
+        deal.seller_approved = True
+        deal.supplier_approved = True
+        deal.save()
+        with pytest.raises(BusinessLogicError) as exc:
+            DealService.update_deal(deal, seller_user, delivery_cost_split=60)
+        assert exc.value.status_code == status.HTTP_400_BAD_REQUEST
     
     def test_assign_driver_to_deal(self, seller_user, deal, driver_user):
         deal.status = Deal.Status.LOOKING_FOR_DRIVER
         deal.driver = None
+        deal.seller_approved = True
+        deal.supplier_approved = True
         deal.save()
         
         updated_deal = DealService.assign_driver_to_deal(deal, seller_user, driver_user.driver_profile.id)
@@ -109,6 +160,8 @@ class TestDealService:
         deal.status = Deal.Status.LOOKING_FOR_DRIVER
         deal.driver = None
         deal.delivery_handler = Deal.DeliveryHandler.SYSTEM_DRIVER
+        deal.seller_approved = True
+        deal.supplier_approved = True
         deal.save()
         
         request = DealService.request_driver_for_deal(
@@ -139,7 +192,8 @@ class TestDealService:
             quantity=2,
             unit_price=product.price
         )
-        
+        deal.seller_approved = True
+        deal.supplier_approved = True
         deal.status = Deal.Status.DONE
         deal.delivery_count = 1
         deal.save()

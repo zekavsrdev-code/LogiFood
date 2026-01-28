@@ -8,14 +8,17 @@ from drf_spectacular.utils import extend_schema
 
 from apps.core.schema import openapi_parameters_from_filterset
 from apps.core.mixins import ActionValidationMixin, SuccessResponseListRetrieveMixin
-from .models import Deal, Delivery, DeliveryItem, RequestToDriver
+from .models import Deal, DealItem, Delivery, DeliveryItem, RequestToDriver
 from .serializers import (
     DealSerializer,
     DealCreateSerializer,
+    DealUpdateSerializer,
     DealStatusUpdateSerializer,
     DealDriverAssignSerializer,
     DealDriverRequestSerializer,
     DealCompleteSerializer,
+    DealItemSerializer,
+    DealItemCreateUpdateSerializer,
     RequestToDriverSerializer,
     RequestToDriverProposePriceSerializer,
     RequestToDriverApproveSerializer,
@@ -74,6 +77,8 @@ class DealViewSet(ActionValidationMixin, SuccessResponseListRetrieveMixin, views
     def get_serializer_class(self):
         if self.action == 'create':
             return DealCreateSerializer
+        if self.action in ('update', 'partial_update'):
+            return DealUpdateSerializer
         if self.action == 'update_status':
             return DealStatusUpdateSerializer
         if self.action == 'assign_driver':
@@ -109,7 +114,37 @@ class DealViewSet(ActionValidationMixin, SuccessResponseListRetrieveMixin, views
     
     def retrieve(self, request, *args, **kwargs):
         return super().retrieve(request, *args, **kwargs)
-    
+
+    def update(self, request, *args, **kwargs):
+        deal = self.get_object()
+        ser = self.get_serializer(deal, data=request.data, partial=False)
+        ser.is_valid(raise_exception=True)
+        try:
+            updated = DealService.update_deal(deal, request.user, **ser.validated_data)
+            return success_response(data=DealSerializer(updated).data, message='Deal updated successfully')
+        except BusinessLogicError as e:
+            return error_response(message=str(e.detail), status_code=e.status_code)
+
+    def partial_update(self, request, *args, **kwargs):
+        deal = self.get_object()
+        ser = self.get_serializer(deal, data=request.data, partial=True)
+        ser.is_valid(raise_exception=True)
+        try:
+            updated = DealService.update_deal(deal, request.user, **ser.validated_data)
+            return success_response(data=DealSerializer(updated).data, message='Deal updated successfully')
+        except BusinessLogicError as e:
+            return error_response(message=str(e.detail), status_code=e.status_code)
+
+    @action(detail=True, methods=['put', 'post'], permission_classes=[IsAuthenticated])
+    def approve(self, request, pk=None):
+        """Seller or supplier approves the current deal/items. Required before LOOKING_FOR_DRIVER or DONE."""
+        deal = self.get_object()
+        try:
+            updated = DealService.approve_deal(deal, request.user)
+            return success_response(data=DealSerializer(updated).data, message='Deal approved')
+        except BusinessLogicError as e:
+            return error_response(message=str(e.detail), status_code=e.status_code)
+
     @action(detail=True, methods=['put'], permission_classes=[IsAuthenticated])
     def update_status(self, request, pk=None):
         deal = self.get_object()
@@ -159,6 +194,55 @@ class DealViewSet(ActionValidationMixin, SuccessResponseListRetrieveMixin, views
                 status_code=status.HTTP_201_CREATED,
             )
         return self._run_action_validated(request, run)
+
+
+# ==================== DEAL ITEM VIEWS ====================
+
+
+class DealItemViewSet(viewsets.ModelViewSet):
+    """Deal items: both seller and supplier can create/update/delete. Clears the other party’s deal approval."""
+    permission_classes = [IsAuthenticated]
+    pagination_class = StandardResultsSetPagination
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_seller:
+            return DealItem.objects.filter(deal__seller=user.seller_profile).select_related('deal', 'product')
+        if user.is_supplier:
+            return DealItem.objects.filter(deal__supplier=user.supplier_profile).select_related('deal', 'product')
+        return DealItem.objects.none()
+
+    def get_serializer_class(self):
+        if self.action in ('create', 'update', 'partial_update'):
+            return DealItemCreateUpdateSerializer
+        return DealItemSerializer
+
+    def _ensure_deal_editable(self, deal):
+        if deal.status != Deal.Status.DEALING:
+            raise BusinessLogicError(
+                'Deal items can only be changed while deal status is Dealing',
+                status_code=status.HTTP_400_BAD_REQUEST
+            )
+
+    def perform_create(self, serializer):
+        deal = serializer.validated_data.get('deal')
+        self._ensure_deal_editable(deal)
+        instance = serializer.save(created_by=self.request.user)
+        DealService.clear_other_approval(instance.deal, self.request.user)
+        instance.deal.save()
+
+    def perform_update(self, serializer):
+        self._ensure_deal_editable(serializer.instance.deal)
+        super().perform_update(serializer)
+        DealService.clear_other_approval(serializer.instance.deal, self.request.user)
+        serializer.instance.deal.save()
+
+    def perform_destroy(self, instance):
+        self._ensure_deal_editable(instance.deal)
+        deal = instance.deal
+        super().perform_destroy(instance)
+        DealService.clear_other_approval(deal, self.request.user)
+        deal.save()
 
 
 # ==================== DELIVERY VIEWS ====================

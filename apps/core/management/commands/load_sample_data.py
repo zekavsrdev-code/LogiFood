@@ -473,6 +473,11 @@ class Command(BaseCommand):
                     created_by=deal_creator
                 )
             
+            # Deals with LOOKING_FOR_DRIVER or DONE require both parties approved
+            if deal.status in (Deal.Status.LOOKING_FOR_DRIVER, Deal.Status.DONE):
+                deal.seller_approved = True
+                deal.supplier_approved = True
+                deal.save()
             created_deals.append(deal)
             self.stdout.write(f'  Created: Deal #{deal.id} - {deal.seller.business_name} & {deal.supplier.company_name}')
 
@@ -595,7 +600,7 @@ class Command(BaseCommand):
                 
                 delivery = Delivery.objects.create(
                     deal=done_deal,
-                    supplier_share=100,  # Default: all to supplier
+                    supplier_share=done_deal.delivery_cost_split,
                     driver_profile=final_driver_profile,
                     driver_name=final_driver_name,
                     driver_phone=final_driver_phone,

@@ -173,7 +173,22 @@ class TestOrderFlowE2E:
         assert create_resp.status_code == status.HTTP_201_CREATED
         deal_id = create_resp.data['data']['id']
 
-        # 3. Seller sets deal to LOOKING_FOR_DRIVER
+        # 3. Both parties approve the deal (required before LOOKING_FOR_DRIVER)
+        seller_approve = seller_client.post(
+            f'/api/orders/deals/{deal_id}/approve/',
+            {},
+            format='json',
+        )
+        assert seller_approve.status_code == status.HTTP_200_OK
+        
+        supplier_approve = supplier_client.post(
+            f'/api/orders/deals/{deal_id}/approve/',
+            {},
+            format='json',
+        )
+        assert supplier_approve.status_code == status.HTTP_200_OK
+
+        # 4. Seller sets deal to LOOKING_FOR_DRIVER
         update_resp = seller_client.put(
             f'/api/orders/deals/{deal_id}/update_status/',
             {'status': Deal.Status.LOOKING_FOR_DRIVER},
@@ -181,7 +196,7 @@ class TestOrderFlowE2E:
         )
         assert update_resp.status_code == status.HTTP_200_OK
 
-        # 4. Seller requests driver
+        # 5. Seller requests driver
         request_resp = seller_client.put(
             f'/api/orders/deals/{deal_id}/request_driver/',
             {'driver_id': driver_id, 'requested_price': '150.00'},
@@ -190,14 +205,14 @@ class TestOrderFlowE2E:
         assert request_resp.status_code == status.HTTP_201_CREATED
         assert request_resp.data.get('success') is True
 
-        # 5. Driver lists requests, get request_id (the one for our deal)
+        # 6. Driver lists requests, get request_id (the one for our deal)
         req_list_resp = driver_client.get('/api/orders/driver-requests/')
         assert req_list_resp.status_code == status.HTTP_200_OK
         requests_list = _get_list_data(req_list_resp)
         assert len(requests_list) >= 1
         request_id = next(r['id'] for r in requests_list if _deal_id_from_item(r) == deal_id)
 
-        # 6. Driver proposes price
+        # 7. Driver proposes price
         propose_resp = driver_client.put(
             f'/api/orders/driver-requests/{request_id}/propose_price/',
             {'proposed_price': '175.00'},
@@ -206,7 +221,7 @@ class TestOrderFlowE2E:
         assert propose_resp.status_code == status.HTTP_200_OK
         assert propose_resp.data.get('success') is True
 
-        # 7. Supplier approves
+        # 8. Supplier approves
         sup_approve = supplier_client.put(
             f'/api/orders/driver-requests/{request_id}/approve/',
             {'final_price': '150.00'},
@@ -214,7 +229,7 @@ class TestOrderFlowE2E:
         )
         assert sup_approve.status_code == status.HTTP_200_OK
 
-        # 8. Seller approves
+        # 9. Seller approves
         sel_approve = seller_client.put(
             f'/api/orders/driver-requests/{request_id}/approve/',
             {'final_price': '150.00'},
@@ -222,7 +237,7 @@ class TestOrderFlowE2E:
         )
         assert sel_approve.status_code == status.HTTP_200_OK
 
-        # 9. Driver approves (last → status ACCEPTED, deal.driver set)
+        # 10. Driver approves (last → status ACCEPTED, deal.driver set)
         drv_approve = driver_client.put(
             f'/api/orders/driver-requests/{request_id}/approve/',
             {'final_price': '150.00'},
@@ -230,7 +245,7 @@ class TestOrderFlowE2E:
         )
         assert drv_approve.status_code == status.HTTP_200_OK
 
-        # 10. Verify: deal has driver and request is ACCEPTED
+        # 11. Verify: deal has driver and request is ACCEPTED
         deal_resp = seller_client.get(f'/api/orders/deals/{deal_id}/')
         assert deal_resp.status_code == status.HTTP_200_OK
         deal_data = deal_resp.data.get('data', {})

@@ -65,7 +65,19 @@ class Deal(TimeStampedModel):
         verbose_name='Delivery Count',
         help_text='Number of deliveries planned for this deal. For example, 200kg of onions can be delivered in 3 separate deliveries. This is the planned count, not the actual count.'
     )
-    
+    # Both parties must approve before transitioning to LOOKING_FOR_DRIVER or DONE.
+    # When seller/supplier changes deal (delivery_handler, delivery_cost_split, delivery_count) or any DealItem, the other party’s approval is cleared.
+    seller_approved = models.BooleanField(
+        default=False,
+        verbose_name='Seller Approved',
+        help_text='Seller has approved the current deal/items. Cleared when supplier edits deal or items.'
+    )
+    supplier_approved = models.BooleanField(
+        default=False,
+        verbose_name='Supplier Approved',
+        help_text='Supplier has approved the current deal/items. Cleared when seller edits deal or items.'
+    )
+
     class Meta:
         db_table = 'deals'
         verbose_name = 'Deal'
@@ -104,6 +116,11 @@ class Deal(TimeStampedModel):
     def can_create_more_deliveries(self):
         """Check if more deliveries can be created for this deal"""
         return self.get_actual_delivery_count() < self.delivery_count
+
+    @property
+    def both_parties_approved(self):
+        """True if both seller and supplier have approved; required for LOOKING_FOR_DRIVER / DONE."""
+        return bool(self.seller_approved and self.supplier_approved)
 
 
 class DealItem(TimeStampedModel):
@@ -433,7 +450,12 @@ class DeliveryItem(TimeStampedModel):
     """Delivery line item - links to DealItem for price (no price stored on Delivery/DeliveryItem)."""
     delivery = models.ForeignKey(Delivery, on_delete=models.CASCADE, related_name='items')
     deal_item = models.ForeignKey(
-        'DealItem', on_delete=models.CASCADE, related_name='delivery_items', verbose_name='Deal Item'
+        'DealItem',
+        on_delete=models.CASCADE,
+        related_name='delivery_items',
+        verbose_name='Deal Item',
+        null=True,
+        blank=True,
     )
     quantity = models.PositiveIntegerField(verbose_name='Quantity')
 
@@ -443,16 +465,20 @@ class DeliveryItem(TimeStampedModel):
         verbose_name_plural = 'Delivery Items'
 
     def __str__(self):
-        return f"{self.deal_item.product.name} x {self.quantity}"
+        if self.deal_item:
+            return f"{self.deal_item.product.name} x {self.quantity}"
+        return f"DeliveryItem #{self.pk}"
 
     @property
     def product(self):
-        return self.deal_item.product
+        return self.deal_item.product if self.deal_item else None
 
     @property
     def unit_price(self):
-        return self.deal_item.unit_price
+        return self.deal_item.unit_price if self.deal_item else None
 
     @property
     def total_price(self):
-        return self.quantity * self.unit_price
+        if self.deal_item and self.unit_price is not None:
+            return self.quantity * self.unit_price
+        return None

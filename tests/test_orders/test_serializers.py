@@ -42,6 +42,8 @@ class TestDealSerializer:
         assert 'delivery_handler_display' in data
         assert 'delivery_cost_split' in data
         assert 'delivery_count' in data
+        assert 'seller_approved' in data
+        assert 'supplier_approved' in data
         assert 'items' in data
         assert 'goods_total' in data
         assert 'delivery_fee' in data
@@ -49,6 +51,8 @@ class TestDealSerializer:
         assert 'seller_delivery_share' in data
         assert data['delivery_cost_split'] == 50
         assert data['delivery_count'] == 1
+        assert data['seller_approved'] is False
+        assert data['supplier_approved'] is False
     
     def test_deal_serializer_with_items(self, deal, product):
         DealItem.objects.create(

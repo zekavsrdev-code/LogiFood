@@ -143,11 +143,61 @@ class DealService(BaseService):
             )
     
     @classmethod
+    def clear_other_approval(cls, deal: Deal, user) -> None:
+        """Clear the other party’s approval when this user edits deal or items. Caller must save deal."""
+        if user.is_seller:
+            deal.supplier_approved = False
+        elif user.is_supplier:
+            deal.seller_approved = False
+
+    @classmethod
     def update_deal_status(cls, deal: Deal, user, new_status: str) -> Deal:
-        """Update deal status with permission check"""
+        """Update deal status with permission check. LOOKING_FOR_DRIVER and DONE require both parties approved."""
         cls._check_deal_permission(deal, user)
-        
+        if new_status in (Deal.Status.LOOKING_FOR_DRIVER, Deal.Status.DONE):
+            if not deal.both_parties_approved:
+                raise BusinessLogicError(
+                    'Both seller and supplier must approve before setting status to Looking for Driver or Done',
+                    status_code=status.HTTP_400_BAD_REQUEST
+                )
         deal.status = new_status
+        deal.save()
+        return deal
+
+    @classmethod
+    def approve_deal(cls, deal: Deal, user) -> Deal:
+        """Seller sets seller_approved=True, supplier sets supplier_approved=True."""
+        cls._check_deal_permission(deal, user)
+        if user.is_seller:
+            deal.seller_approved = True
+        elif user.is_supplier:
+            deal.supplier_approved = True
+        else:
+            raise BusinessLogicError(
+                'Only seller or supplier can approve this deal',
+                status_code=status.HTTP_403_FORBIDDEN
+            )
+        deal.save()
+        return deal
+
+    @classmethod
+    def update_deal(cls, deal: Deal, user, **kwargs) -> Deal:
+        """Update delivery_handler, delivery_cost_split, delivery_count. Clears the other party’s approval. Only when status is DEALING."""
+        cls._check_deal_permission(deal, user)
+        if deal.status != Deal.Status.DEALING:
+            raise BusinessLogicError(
+                'Deal can only be updated while status is Dealing',
+                status_code=status.HTTP_400_BAD_REQUEST
+            )
+        allowed = {'delivery_handler', 'delivery_cost_split', 'delivery_count'}
+        updates = {k: v for k, v in kwargs.items() if k in allowed and v is not None}
+        if not updates:
+            return deal
+        cls.clear_other_approval(deal, user)
+        if 'delivery_handler' in updates:
+            cls._validate_delivery_handler(user, updates['delivery_handler'])
+        for k, v in updates.items():
+            setattr(deal, k, v)
         deal.save()
         return deal
     

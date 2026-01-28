@@ -9,7 +9,7 @@ from apps.products.models import Product
 # ==================== DEAL SERIALIZERS ====================
 
 class DealItemSerializer(serializers.ModelSerializer):
-    """Deal Item Serializer"""
+    """Deal Item Serializer (read / nested)"""
     product_name = serializers.CharField(source='product.name', read_only=True)
     total_price = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
     
@@ -17,6 +17,26 @@ class DealItemSerializer(serializers.ModelSerializer):
         model = DealItem
         fields = ['id', 'product', 'product_name', 'quantity', 'unit_price', 'total_price']
         read_only_fields = ['id', 'unit_price']
+
+
+class DealItemCreateUpdateSerializer(serializers.ModelSerializer):
+    """Deal Item create/update – seller and supplier can change; clears the other party’s approval."""
+    class Meta:
+        model = DealItem
+        fields = ['id', 'deal', 'product', 'quantity', 'unit_price']
+        read_only_fields = ['id']
+        extra_kwargs = {
+            'unit_price': {'required': False}
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        req = self.context.get('request')
+        if req and hasattr(req, 'user'):
+            from .services import DealService
+            self.fields['deal'].queryset = DealService.get_user_deals(req.user)
+        if self.instance:
+            self.fields['deal'].read_only = True
 
 
 class DealSummarySerializer(serializers.ModelSerializer):
@@ -55,10 +75,11 @@ class DealSerializer(serializers.ModelSerializer):
             'status', 'status_display',
             'delivery_handler', 'delivery_handler_display',
             'delivery_cost_split', 'delivery_count', 'items',
+            'seller_approved', 'supplier_approved',
             'goods_total', 'delivery_fee', 'supplier_delivery_share', 'seller_delivery_share',
             'created_by', 'created_at', 'updated_at'
         ]
-        read_only_fields = ['id', 'seller', 'supplier', 'delivery_count', 'created_by', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'seller', 'supplier', 'delivery_count', 'seller_approved', 'supplier_approved', 'created_by', 'created_at', 'updated_at']
 
     def get_driver_name(self, obj):
         if obj.driver:
@@ -84,6 +105,13 @@ class DealSerializer(serializers.ModelSerializer):
     def get_seller_delivery_share(self, obj):
         _, _, seller_amt = obj.get_delivery_fee_split()
         return seller_amt
+
+
+class DealUpdateSerializer(serializers.Serializer):
+    """Update delivery_handler, delivery_cost_split, delivery_count. Clears the other party’s approval."""
+    delivery_handler = serializers.ChoiceField(choices=Deal.DeliveryHandler.choices, required=False)
+    delivery_cost_split = serializers.IntegerField(min_value=0, max_value=100, required=False)
+    delivery_count = serializers.IntegerField(min_value=1, required=False)
 
 
 class DealCreateSerializer(serializers.Serializer):
