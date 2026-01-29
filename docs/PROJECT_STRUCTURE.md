@@ -113,7 +113,7 @@ LogiFood/
 | services.py | UserService |
 | views.py | Register, Login, Profile, ChangePassword, ToggleAvailability |
 | urls.py | api/auth/register|login|profile|... |
-| utils.py | JWT helpers vb. |
+| utils.py | Token helpers vb. |
 | admin.py | Profil admin’leri |
 
 ### apps.products (app label: `products`)
@@ -133,9 +133,9 @@ LogiFood/
 |-------|-----|
 | models.py | Deal, DealItem, RequestToDriver, Delivery, DeliveryItem |
 | serializers.py | Deal*, Delivery*, RequestToDriver* |
-| services.py | DealService, DeliveryService, RequestToDriverService, DiscoveryService |
-| views.py | DealViewSet, DeliveryViewSet, RequestToDriverViewSet, SupplierListView, DriverListView, … |
-| urls.py | api/orders/deals, driver-requests, deliveries, suppliers/, drivers/, available-deliveries/ |
+| services.py | DealService, DeliveryService, RequestToDriverService |
+| views.py | DealViewSet, DealItemViewSet, DeliveryViewSet, RequestToDriverViewSet, AvailableDeliveryListView, AcceptDeliveryView |
+| urls.py | api/orders/deals, deal-items, driver-requests, deliveries, available-deliveries, accept-delivery/ |
 | admin.py | Deal, DealItem, Delivery, DeliveryItem, RequestToDriver admin |
 
 ---
@@ -159,12 +159,13 @@ LogiFood/
 │   └── items/<id>/
 ├── orders/                  (apps.orders)
 │   ├── deals/               (ViewSet)
+│   ├── deal-items/          (ViewSet)
 │   ├── driver-requests/    (ViewSet)
 │   ├── deliveries/          (ViewSet)
-│   ├── suppliers/
-│   ├── drivers/
 │   ├── available-deliveries/
 │   └── accept-delivery/<pk>/
+├── users/                   (apps.users)
+│   └── profiles/            (ProfileListAPIView, role-based filtering)
 ├── health/                  (apps.core)
 ├── schema/                  (drf-spectacular)
 ├── docs/                    (Swagger)
@@ -218,8 +219,8 @@ TimeStampedModel (apps.core)
 - **Note:** For consistency, health can be moved to `views.py` and imported in urls.
 
 ### 6.7 Discovery endpoints
-- **Current:** `suppliers/`, `drivers/`, `available-deliveries/` live under apps.orders.
-- **Gariplik:** Bunlar kullanıcı “keşif” (discovery) endpoint’leri; konsept olarak users veya ayrı bir “discovery” modülüne de taşınabilir. Şu anki haliyle iş mantığı orders (deal/driver/delivery) ile sıkı bağlı olduğu için orders’ta kalmak da mantıklı; sadece ileride büyürse ayrıştırma düşünülebilir.
+- **Current:** Profile discovery consolidated to `/api/users/profiles/` with role-based filtering (SUPPLIER, SELLER, DRIVER). `available-deliveries/` remains under apps.orders.
+- **Note:** Profile discovery moved to users app for better organization. Delivery discovery stays in orders as it's deal/delivery-specific.
 
 ### 6.8 Test directory naming
 - **Current:** `test_orders`, `test_products`, `test_users`, `test_core`, `test_e2e`.
