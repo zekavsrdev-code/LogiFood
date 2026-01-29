@@ -713,7 +713,7 @@ pytest -m "not slow"    # Skip slow tests
 
 ### Test Coverage
 
-Current test coverage: **77%** (run `pytest --cov=src --cov=apps --cov-report=term-missing`)
+Current test coverage: **88%** (run `pytest --cov=apps --cov-report=term-missing`)
 
 Coverage is maintained through:
 - Comprehensive unit tests for all models and services
