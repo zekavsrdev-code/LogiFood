@@ -496,18 +496,27 @@ class Command(BaseCommand):
                 # Determine who created the request (supplier or seller based on delivery_cost_split)
                 if deal.delivery_cost_split == 100:
                     creator = deal.supplier.user
+                    supplier_approved = True
+                    seller_approved = False
                 elif deal.delivery_cost_split == 0:
                     creator = deal.seller.user
+                    supplier_approved = False
+                    seller_approved = True
                 else:
                     # Split - seller creates the request
                     creator = deal.seller.user
+                    supplier_approved = False
+                    seller_approved = True
                 
                 request = RequestToDriver.objects.create(
                     deal=deal,
                     driver=driver,
                     requested_price=requested_price,
                     status=RequestToDriver.Status.PENDING,
-                    created_by=creator
+                    created_by=creator,
+                    supplier_approved=supplier_approved,
+                    seller_approved=seller_approved,
+                    driver_approved=False  # Driver hasn't approved yet
                 )
                 created_requests.append(request)
                 self.stdout.write(f'  Created: Request #{request.id} - Deal #{deal.id} to Driver {driver.user.username}')

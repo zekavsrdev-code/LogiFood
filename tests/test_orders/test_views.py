@@ -164,6 +164,11 @@ class TestDealViews:
         )
         assert response.status_code == status.HTTP_201_CREATED
         assert response.data['success'] is True
+        # Seller created the request, so seller_approved should be True
+        request_data = response.data['data']
+        assert request_data['seller_approved'] is True
+        assert request_data['supplier_approved'] is False
+        assert request_data['driver_approved'] is False
     
     def test_request_driver_for_3rd_party_deal(self, seller_client, deal, driver_user):
         deal.status = Deal.Status.LOOKING_FOR_DRIVER

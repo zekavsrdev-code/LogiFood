@@ -204,6 +204,12 @@ class TestOrderFlowE2E:
         )
         assert request_resp.status_code == status.HTTP_201_CREATED
         assert request_resp.data.get('success') is True
+        
+        # Verify auto-approval: seller created, so seller_approved=True
+        request_data = request_resp.data.get('data', {})
+        assert request_data.get('seller_approved') is True
+        assert request_data.get('supplier_approved') is False
+        assert request_data.get('driver_approved') is False
 
         # 6. Driver lists requests, get request_id (the one for our deal)
         req_list_resp = driver_client.get('/api/orders/driver-requests/')
@@ -256,3 +262,172 @@ class TestOrderFlowE2E:
         detail_resp = driver_client.get(f'/api/orders/driver-requests/{request_id}/')
         assert detail_resp.status_code == status.HTTP_200_OK
         assert detail_resp.data.get('data', {}).get('status') == RequestToDriver.Status.ACCEPTED
+
+    def test_auto_approval_seller_creates_request(
+        self,
+        seller_client,
+        supplier_client,
+        supplier_user,
+        driver_user,
+        product,
+    ):
+        """Flow: Seller creates request → Auto-approval: seller_approved=True."""
+        # 1. Create deal and get to LOOKING_FOR_DRIVER status
+        create_data = {
+            'supplier_id': supplier_user.supplier_profile.id,
+            'delivery_handler': Deal.DeliveryHandler.SYSTEM_DRIVER,
+            'items': [{'product_id': product.id, 'quantity': 2}],
+        }
+        create_resp = seller_client.post('/api/orders/deals/', create_data, format='json')
+        assert create_resp.status_code == status.HTTP_201_CREATED
+        deal_id = create_resp.data['data']['id']
+
+        # 2. Both parties approve the deal
+        seller_client.post(f'/api/orders/deals/{deal_id}/approve/', {}, format='json')
+        supplier_client.post(f'/api/orders/deals/{deal_id}/approve/', {}, format='json')
+
+        # 3. Set deal to LOOKING_FOR_DRIVER
+        seller_client.put(
+            f'/api/orders/deals/{deal_id}/update_status/',
+            {'status': Deal.Status.LOOKING_FOR_DRIVER},
+            format='json',
+        )
+
+        # 4. Seller creates request
+        request_resp = seller_client.put(
+            f'/api/orders/deals/{deal_id}/request_driver/',
+            {'driver_id': driver_user.driver_profile.id, 'requested_price': '150.00'},
+            format='json',
+        )
+        assert request_resp.status_code == status.HTTP_201_CREATED
+        request_data = request_resp.data.get('data', {})
+        
+        # 5. Verify auto-approval: seller created, so seller_approved=True
+        assert request_data.get('seller_approved') is True
+        assert request_data.get('supplier_approved') is False
+        assert request_data.get('driver_approved') is False
+
+    def test_auto_approval_supplier_creates_request(
+        self,
+        seller_client,
+        supplier_client,
+        supplier_user,
+        driver_user,
+        product,
+    ):
+        """Flow: Supplier creates request → Auto-approval: supplier_approved=True."""
+        # 1. Create deal and get to LOOKING_FOR_DRIVER status
+        create_data = {
+            'supplier_id': supplier_user.supplier_profile.id,
+            'delivery_handler': Deal.DeliveryHandler.SYSTEM_DRIVER,
+            'items': [{'product_id': product.id, 'quantity': 2}],
+        }
+        create_resp = seller_client.post('/api/orders/deals/', create_data, format='json')
+        assert create_resp.status_code == status.HTTP_201_CREATED
+        deal_id = create_resp.data['data']['id']
+
+        # 2. Both parties approve the deal
+        seller_client.post(f'/api/orders/deals/{deal_id}/approve/', {}, format='json')
+        supplier_client.post(f'/api/orders/deals/{deal_id}/approve/', {}, format='json')
+
+        # 3. Set deal to LOOKING_FOR_DRIVER
+        seller_client.put(
+            f'/api/orders/deals/{deal_id}/update_status/',
+            {'status': Deal.Status.LOOKING_FOR_DRIVER},
+            format='json',
+        )
+
+        # 4. Supplier creates request
+        request_resp = supplier_client.put(
+            f'/api/orders/deals/{deal_id}/request_driver/',
+            {'driver_id': driver_user.driver_profile.id, 'requested_price': '200.00'},
+            format='json',
+        )
+        assert request_resp.status_code == status.HTTP_201_CREATED
+        request_data = request_resp.data.get('data', {})
+        
+        # 5. Verify auto-approval: supplier created, so supplier_approved=True
+        assert request_data.get('supplier_approved') is True
+        assert request_data.get('seller_approved') is False
+        assert request_data.get('driver_approved') is False
+
+    def test_driver_discovers_and_accepts_delivery(
+        self,
+        seller_client,
+        driver_client,
+        supplier_user,
+        driver_user,
+        product,
+    ):
+        """Flow: Deal → Complete → Driver discovers available delivery → Accept delivery."""
+        from apps.orders.models import DealItem, Delivery
+
+        # 1. Create deal with SYSTEM_DRIVER
+        create_data = {
+            'supplier_id': supplier_user.supplier_profile.id,
+            'delivery_handler': Deal.DeliveryHandler.SYSTEM_DRIVER,
+            'items': [{'product_id': product.id, 'quantity': 2}],
+        }
+        create_resp = seller_client.post('/api/orders/deals/', create_data, format='json')
+        assert create_resp.status_code == status.HTTP_201_CREATED
+        deal_id = create_resp.data['data']['id']
+        deal = Deal.objects.get(id=deal_id)
+
+        # 2. Add deal item and set deal to DONE
+        DealItem.objects.create(
+            deal=deal,
+            product=product,
+            quantity=2,
+            unit_price=product.price,
+        )
+        deal.status = Deal.Status.DONE
+        deal.delivery_count = 1
+        deal.save()
+
+        # 3. Complete deal to create delivery
+        complete_resp = seller_client.post(
+            f'/api/orders/deals/{deal_id}/complete/',
+            {
+                'delivery_address': 'Test Address',
+                'delivery_note': 'Test note',
+                'supplier_share': 100,
+            },
+            format='json',
+        )
+        assert complete_resp.status_code == status.HTTP_201_CREATED
+        deliveries = complete_resp.data.get('data', {}).get('deliveries', [])
+        assert len(deliveries) >= 1
+        delivery_id = deliveries[0]['id']
+
+        # 4. Set delivery status to READY (required for driver acceptance)
+        delivery = Delivery.objects.get(id=delivery_id)
+        delivery.status = Delivery.Status.READY
+        delivery.driver_profile = None  # Must be unassigned
+        delivery.save()
+
+        # 5. Driver lists available deliveries
+        available_resp = driver_client.get('/api/orders/available-deliveries/')
+        assert available_resp.status_code == status.HTTP_200_OK
+        available_deliveries = _get_list_data(available_resp)
+        delivery_ids = [d['id'] for d in available_deliveries]
+        assert delivery_id in delivery_ids
+
+        # 6. Driver accepts delivery
+        accept_resp = driver_client.put(
+            f'/api/orders/accept-delivery/{delivery_id}/',
+            {},
+            format='json',
+        )
+        assert accept_resp.status_code == status.HTTP_200_OK
+        assert accept_resp.data.get('success') is True
+        accepted_delivery = accept_resp.data.get('data', {})
+        
+        # 7. Verify delivery is assigned to driver
+        assert accepted_delivery.get('driver_profile') == driver_user.driver_profile.id
+        assert accepted_delivery.get('status') == Delivery.Status.PICKED_UP
+
+        # 8. Verify delivery no longer appears in available list
+        available_resp2 = driver_client.get('/api/orders/available-deliveries/')
+        available_deliveries2 = _get_list_data(available_resp2)
+        delivery_ids2 = [d['id'] for d in available_deliveries2]
+        assert delivery_id not in delivery_ids2

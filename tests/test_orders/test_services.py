@@ -176,6 +176,33 @@ class TestDealService:
         assert request.driver == driver_user.driver_profile
         assert request.requested_price == Decimal('150.00')
         assert request.status == RequestToDriver.Status.PENDING
+        # Seller created the request, so seller_approved should be True
+        assert request.seller_approved is True
+        assert request.supplier_approved is False
+        assert request.driver_approved is False
+    
+    def test_request_driver_for_deal_by_supplier(self, supplier_user, deal, driver_user):
+        """Test that supplier can create request and auto-approve"""
+        deal.status = Deal.Status.LOOKING_FOR_DRIVER
+        deal.delivery_handler = Deal.DeliveryHandler.SYSTEM_DRIVER
+        deal.seller_approved = True
+        deal.supplier_approved = True
+        deal.save()
+        
+        request = DealService.request_driver_for_deal(
+            deal, 
+            supplier_user, 
+            driver_user.driver_profile.id, 
+            200.00
+        )
+        assert request.deal == deal
+        assert request.driver == driver_user.driver_profile
+        assert request.requested_price == Decimal('200.00')
+        assert request.status == RequestToDriver.Status.PENDING
+        # Supplier created the request, so supplier_approved should be True
+        assert request.supplier_approved is True
+        assert request.seller_approved is False
+        assert request.driver_approved is False
     
     def test_request_driver_for_3rd_party_deal(self, seller_user, deal, driver_user):
         deal.status = Deal.Status.LOOKING_FOR_DRIVER

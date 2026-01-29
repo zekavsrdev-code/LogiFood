@@ -221,13 +221,21 @@ class DealService(BaseService):
         driver = DriverProfile.objects.get(id=driver_id)
         
         # Check if request already exists
+        # Auto-approve by the creator (for new requests)
+        supplier_approved = user.is_supplier
+        seller_approved = user.is_seller
+        driver_approved = user.is_driver
+        
         request, created = RequestToDriver.objects.get_or_create(
             deal=deal,
             driver=driver,
             defaults={
                 'requested_price': Decimal('0.00'),
                 'status': RequestToDriver.Status.PENDING,
-                'created_by': user
+                'created_by': user,
+                'supplier_approved': supplier_approved,
+                'seller_approved': seller_approved,
+                'driver_approved': driver_approved
             }
         )
         
@@ -283,12 +291,20 @@ class DealService(BaseService):
                 status_code=status.HTTP_400_BAD_REQUEST
             )
         
+        # Auto-approve by the creator
+        supplier_approved = user.is_supplier
+        seller_approved = user.is_seller
+        driver_approved = user.is_driver
+        
         return RequestToDriver.objects.create(
             deal=deal,
             driver=driver,
             requested_price=requested_price,
             status=RequestToDriver.Status.PENDING,
-            created_by=user
+            created_by=user,
+            supplier_approved=supplier_approved,
+            seller_approved=seller_approved,
+            driver_approved=driver_approved
         )
     
     @classmethod
