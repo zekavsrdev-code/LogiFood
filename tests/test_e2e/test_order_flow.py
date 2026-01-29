@@ -258,6 +258,8 @@ class TestOrderFlowE2E:
         # Driver info is now in driver_detail, not driver field
         assert deal_data.get('driver_detail') is not None
         assert deal_data.get('driver_detail', {}).get('id') == driver_id
+        # Deal should be DONE if both parties approved (they did in step 3)
+        assert deal_data.get('status') == Deal.Status.DONE
 
         detail_resp = driver_client.get(f'/api/orders/driver-requests/{request_id}/')
         assert detail_resp.status_code == status.HTTP_200_OK

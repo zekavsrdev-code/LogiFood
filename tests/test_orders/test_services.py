@@ -157,7 +157,8 @@ class TestDealService:
         accepted_request = updated_deal.driver_requests.filter(status=RequestToDriver.Status.ACCEPTED).first()
         assert accepted_request is not None
         assert accepted_request.driver == driver_user.driver_profile
-        assert updated_deal.status == Deal.Status.DEALING
+        # assign_driver_to_deal auto-approves all parties, so if deal has both_parties_approved, it becomes DONE
+        assert updated_deal.status == Deal.Status.DONE
     
     def test_request_driver_for_deal(self, seller_user, deal, driver_user):
         deal.status = Deal.Status.LOOKING_FOR_DRIVER
@@ -417,6 +418,9 @@ class TestRequestToDriverService:
         deal.supplier = supplier_user.supplier_profile
         deal.seller = seller_user.seller_profile
         deal.delivery_handler = Deal.DeliveryHandler.SYSTEM_DRIVER
+        # Set both parties approved for deal to test DONE status transition
+        deal.seller_approved = True
+        deal.supplier_approved = True
         deal.save()
         
         request = RequestToDriver.objects.create(
@@ -444,6 +448,8 @@ class TestRequestToDriverService:
         accepted_request = deal.driver_requests.filter(status=RequestToDriver.Status.ACCEPTED).first()
         assert accepted_request is not None
         assert accepted_request.driver == driver_user.driver_profile
+        # Deal should be DONE if both parties approved
+        assert deal.status == Deal.Status.DONE
     
     def test_reject_request(self, supplier_user, deal, driver_user):
         deal.supplier = supplier_user.supplier_profile

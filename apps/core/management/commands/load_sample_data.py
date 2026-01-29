@@ -539,7 +539,10 @@ class Command(BaseCommand):
                 request2.seller_approved = True
                 request2.final_price = request2.requested_price
                 request2.accept(request2.final_price)
-                self.stdout.write(f'  Updated: Request #{request2.id} - All parties approved, driver assigned to deal')
+                # Deal status is automatically updated to DONE if both parties approved
+                request2.deal.refresh_from_db()
+                status_msg = f"deal status={request2.deal.status}"
+                self.stdout.write(f'  Updated: Request #{request2.id} - All parties approved, driver assigned to deal, {status_msg}')
             
             # Third request: Partial approval (only supplier approved)
             if len(created_requests) > 2:

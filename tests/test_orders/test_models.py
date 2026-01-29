@@ -381,7 +381,13 @@ class TestRequestToDriverModel:
         request.save()
         assert request.is_fully_approved() is True
     
-    def test_accept_request(self, deal, driver_user):
+    def test_accept_request_with_both_parties_approved(self, deal, driver_user):
+        """Test that deal becomes DONE when RequestToDriver is accepted and both parties approved"""
+        # Set both parties approved for deal to test DONE status transition
+        deal.seller_approved = True
+        deal.supplier_approved = True
+        deal.save()
+        
         request = RequestToDriver.objects.create(
             deal=deal,
             driver=driver_user.driver_profile,
@@ -404,6 +410,39 @@ class TestRequestToDriverModel:
         accepted_request = deal.driver_requests.filter(status=RequestToDriver.Status.ACCEPTED).first()
         assert accepted_request is not None
         assert accepted_request.driver == driver_user.driver_profile
+        # Deal should be DONE since both parties approved
+        assert deal.status == Deal.Status.DONE
+    
+    def test_accept_request_without_both_parties_approved(self, deal, driver_user):
+        """Test that deal becomes DEALING when RequestToDriver is accepted but both parties not approved"""
+        # Don't set both parties approved
+        deal.seller_approved = False
+        deal.supplier_approved = False
+        deal.save()
+        
+        request = RequestToDriver.objects.create(
+            deal=deal,
+            driver=driver_user.driver_profile,
+            requested_price=Decimal('150.00'),
+            supplier_approved=True,
+            seller_approved=True,
+            driver_approved=True,
+            created_by=deal.seller.user
+        )
+        
+        assert request.is_fully_approved() is True
+        
+        request.accept(Decimal('150.00'))
+        
+        assert request.status == RequestToDriver.Status.ACCEPTED
+        assert request.final_price == Decimal('150.00')
+        
+        deal.refresh_from_db()
+        # Driver info is now in RequestToDriver, not Deal
+        accepted_request = deal.driver_requests.filter(status=RequestToDriver.Status.ACCEPTED).first()
+        assert accepted_request is not None
+        assert accepted_request.driver == driver_user.driver_profile
+        # Deal should be DEALING since both parties not approved
         assert deal.status == Deal.Status.DEALING
     
     def test_accept_not_fully_approved(self, deal, driver_user):

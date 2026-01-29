@@ -265,8 +265,13 @@ class RequestToDriver(TimeStampedModel):
         self.final_price = final_price
         self.save()
         
-        # Update deal status to DEALING (driver info is now in RequestToDriver, not Deal)
-        self.deal.status = Deal.Status.DEALING
+        # Update deal status
+        # If both parties have approved the deal, set status to DONE (ready for completion)
+        # Otherwise, set to DEALING (still needs approval)
+        if self.deal.both_parties_approved:
+            self.deal.status = Deal.Status.DONE
+        else:
+            self.deal.status = Deal.Status.DEALING
         self.deal.save()
         
         return self
