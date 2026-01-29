@@ -147,9 +147,14 @@ class DealService(BaseService):
             deal.seller_approved = False
 
     @classmethod
+    @transaction.atomic
     def update_deal_status(cls, deal: Deal, user, new_status: str) -> Deal:
         """Update deal status with permission check. LOOKING_FOR_DRIVER and DONE require both parties approved."""
         cls._check_deal_permission(deal, user)
+        
+        # Lock deal row to prevent lost updates
+        deal = cls.model.objects.select_for_update().get(id=deal.id)
+        
         if new_status in (Deal.Status.LOOKING_FOR_DRIVER, Deal.Status.DONE):
             if not deal.both_parties_approved:
                 raise BusinessLogicError(
@@ -161,9 +166,14 @@ class DealService(BaseService):
         return deal
 
     @classmethod
+    @transaction.atomic
     def approve_deal(cls, deal: Deal, user) -> Deal:
         """Seller sets seller_approved=True, supplier sets supplier_approved=True."""
         cls._check_deal_permission(deal, user)
+        
+        # Lock deal row to prevent lost updates
+        deal = cls.model.objects.select_for_update().get(id=deal.id)
+        
         if user.is_seller:
             deal.seller_approved = True
         elif user.is_supplier:
@@ -177,9 +187,14 @@ class DealService(BaseService):
         return deal
 
     @classmethod
+    @transaction.atomic
     def update_deal(cls, deal: Deal, user, **kwargs) -> Deal:
-        """Update delivery_handler, delivery_cost_split, delivery_count. Clears the other party’s approval. Only when status is DEALING."""
+        """Update delivery_handler, delivery_cost_split, delivery_count. Clears the other party's approval. Only when status is DEALING."""
         cls._check_deal_permission(deal, user)
+        
+        # Lock deal row to prevent lost updates
+        deal = cls.model.objects.select_for_update().get(id=deal.id)
+        
         if deal.status != Deal.Status.DEALING:
             raise BusinessLogicError(
                 'Deal can only be updated while status is Dealing',
@@ -198,6 +213,7 @@ class DealService(BaseService):
         return deal
     
     @classmethod
+    @transaction.atomic
     def assign_driver_to_deal(cls, deal: Deal, user, driver_id: int) -> Deal:
         """
         Assign driver to deal with permission check.
@@ -205,6 +221,9 @@ class DealService(BaseService):
         For backward compatibility, this creates a RequestToDriver and auto-approves it.
         """
         cls._check_deal_permission(deal, user)
+        
+        # Lock deal row to prevent race conditions
+        deal = cls.model.objects.select_for_update().get(id=deal.id)
         
         if deal.status != Deal.Status.LOOKING_FOR_DRIVER:
             raise BusinessLogicError(
@@ -279,9 +298,13 @@ class DealService(BaseService):
             )
     
     @classmethod
+    @transaction.atomic
     def request_driver_for_deal(cls, deal: Deal, user, driver_id: int, requested_price: float) -> RequestToDriver:
         """Request driver for deal with validation"""
         cls._validate_driver_request_prerequisites(deal, user)
+        
+        # Lock deal row to prevent race conditions
+        deal = cls.model.objects.select_for_update().get(id=deal.id)
         
         driver = DriverProfile.objects.get(id=driver_id)
         
@@ -352,6 +375,9 @@ class DealService(BaseService):
                      delivery_note: str = '', supplier_share: int = 100) -> List[Delivery]:
         """Complete deal and create remaining deliveries"""
         cls._validate_deal_completion(deal, user)
+        
+        # Lock deal row to prevent race conditions when checking delivery count
+        deal = cls.model.objects.select_for_update().get(id=deal.id)
         
         existing_count = deal.deliveries.count()
         remaining = deal.delivery_count - existing_count
@@ -481,6 +507,7 @@ class DeliveryService(BaseService):
         return deliveries
     
     @classmethod
+    @transaction.atomic
     def accept_delivery(cls, delivery: Delivery, user) -> Delivery:
         """Driver accepts an available delivery"""
         if not user.is_driver:
@@ -488,6 +515,9 @@ class DeliveryService(BaseService):
                 'Only drivers can accept deliveries', 
                 status_code=status.HTTP_403_FORBIDDEN
             )
+        
+        # Lock delivery row to prevent race conditions
+        delivery = cls.model.objects.select_for_update().get(id=delivery.id)
         
         if delivery.driver_profile_id or delivery.driver_name:
             raise BusinessLogicError(
@@ -538,6 +568,7 @@ class RequestToDriverService(BaseService):
             return cls.model.objects.none()
     
     @classmethod
+    @transaction.atomic
     def propose_price(cls, driver_request: RequestToDriver, user, proposed_price: float) -> RequestToDriver:
         """Driver proposes a price (counter offer)"""
         if not user.is_driver or driver_request.driver != user.driver_profile:
@@ -545,6 +576,9 @@ class RequestToDriverService(BaseService):
                 'Only the requested driver can propose a price',
                 status_code=status.HTTP_403_FORBIDDEN
             )
+        
+        # Lock request row to prevent race conditions
+        driver_request = cls.model.objects.select_for_update().get(id=driver_request.id)
         
         if driver_request.status not in [
             RequestToDriver.Status.PENDING, 
@@ -562,9 +596,11 @@ class RequestToDriverService(BaseService):
         return driver_request
     
     @classmethod
+    @transaction.atomic
     def approve_request(cls, driver_request: RequestToDriver, user, final_price: Optional[float] = None) -> RequestToDriver:
         """Approve driver request"""
-        driver_request.refresh_from_db()
+        # Lock request row to prevent race conditions and get fresh data
+        driver_request = cls.model.objects.select_for_update().get(id=driver_request.id)
         
         if not driver_request.can_approve(user):
             raise BusinessLogicError(
