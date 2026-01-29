@@ -7,7 +7,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import extend_schema
 
 from apps.core.schema import openapi_parameters_from_filterset
-from apps.core.mixins import ActionValidationMixin, SuccessResponseListRetrieveMixin
+from apps.core.mixins import SuccessResponseListRetrieveMixin
 from .models import Deal, DealItem, Delivery, DeliveryItem, RequestToDriver
 from .serializers import (
     DealSerializer,
@@ -48,7 +48,7 @@ REQUEST_ORDERING_FIELDS = ['created_at', 'requested_price']
 # ==================== DEAL VIEWS ====================
 
 
-class DealViewSet(ActionValidationMixin, SuccessResponseListRetrieveMixin, viewsets.ModelViewSet):
+class DealViewSet(SuccessResponseListRetrieveMixin, viewsets.ModelViewSet):
     """
     Deal management ViewSet.
     
@@ -148,40 +148,63 @@ class DealViewSet(ActionValidationMixin, SuccessResponseListRetrieveMixin, views
     @action(detail=True, methods=['put'], permission_classes=[IsAuthenticated])
     def update_status(self, request, pk=None):
         deal = self.get_object()
-        return self._run_action_validated(request, lambda d: success_response(
-            data=DealSerializer(DealService.update_deal_status(deal, request.user, d['status'])).data,
-            message='Deal status updated successfully',
-        ))
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            updated = DealService.update_deal_status(deal, request.user, serializer.validated_data['status'])
+            return success_response(
+                data=DealSerializer(updated).data,
+                message='Deal status updated successfully',
+            )
+        except BusinessLogicError as e:
+            return error_response(message=str(e.detail), status_code=e.status_code)
     
     @action(detail=True, methods=['put'], permission_classes=[IsAuthenticated])
     def assign_driver(self, request, pk=None):
         deal = self.get_object()
-        return self._run_action_validated(request, lambda d: success_response(
-            data=DealSerializer(DealService.assign_driver_to_deal(deal, request.user, d['driver_id'])).data,
-            message='Driver assigned successfully',
-        ))
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            updated = DealService.assign_driver_to_deal(deal, request.user, serializer.validated_data['driver_id'])
+            return success_response(
+                data=DealSerializer(updated).data,
+                message='Driver assigned successfully',
+            )
+        except BusinessLogicError as e:
+            return error_response(message=str(e.detail), status_code=e.status_code)
     
     @action(detail=True, methods=['put'], permission_classes=[IsAuthenticated])
     def request_driver(self, request, pk=None):
         deal = self.get_object()
-        def run(d):
-            r = DealService.request_driver_for_deal(deal, request.user, d['driver_id'], d['requested_price'])
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            driver_request = DealService.request_driver_for_deal(
+                deal, 
+                request.user, 
+                serializer.validated_data['driver_id'], 
+                serializer.validated_data['requested_price']
+            )
             return success_response(
-                data=RequestToDriverSerializer(r).data,
+                data=RequestToDriverSerializer(driver_request).data,
                 message='Driver request sent successfully',
                 status_code=status.HTTP_201_CREATED,
             )
-        return self._run_action_validated(request, run)
+        except BusinessLogicError as e:
+            return error_response(message=str(e.detail), status_code=e.status_code)
     
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
     def complete(self, request, pk=None):
         deal = self.get_object()
-        def run(d):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
             created = DealService.complete_deal(
-                deal, request.user,
-                d['delivery_address'],
-                d.get('delivery_note', ''),
-                d.get('supplier_share', 100),
+                deal, 
+                request.user,
+                serializer.validated_data['delivery_address'],
+                serializer.validated_data.get('delivery_note', ''),
+                serializer.validated_data.get('supplier_share', 100),
             )
             return success_response(
                 data={
@@ -193,7 +216,8 @@ class DealViewSet(ActionValidationMixin, SuccessResponseListRetrieveMixin, views
                 message=f'Deal completed and {len(created)} delivery(ies) created successfully',
                 status_code=status.HTTP_201_CREATED,
             )
-        return self._run_action_validated(request, run)
+        except BusinessLogicError as e:
+            return error_response(message=str(e.detail), status_code=e.status_code)
 
 
 # ==================== DEAL ITEM VIEWS ====================
@@ -248,7 +272,7 @@ class DealItemViewSet(viewsets.ModelViewSet):
 # ==================== DELIVERY VIEWS ====================
 
 
-class DeliveryViewSet(ActionValidationMixin, SuccessResponseListRetrieveMixin, viewsets.ModelViewSet):
+class DeliveryViewSet(SuccessResponseListRetrieveMixin, viewsets.ModelViewSet):
     """
     Delivery management ViewSet.
     
@@ -303,30 +327,38 @@ class DeliveryViewSet(ActionValidationMixin, SuccessResponseListRetrieveMixin, v
     @action(detail=True, methods=['put'], permission_classes=[IsAuthenticated])
     def update_status(self, request, pk=None):
         delivery = self.get_object()
-        return self._run_action_validated(
-            request,
-            lambda d: success_response(
-                data=DeliverySerializer(
-                    DeliveryService.update_delivery_status(delivery, request.user, d['status'])
-                ).data,
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            updated = DeliveryService.update_delivery_status(
+                delivery, 
+                request.user, 
+                serializer.validated_data['status']
+            )
+            return success_response(
+                data=DeliverySerializer(updated).data,
                 message='Delivery status updated successfully',
-            ),
-            validation_message='Update failed',
-        )
+            )
+        except BusinessLogicError as e:
+            return error_response(message=str(e.detail), status_code=e.status_code)
     
     @action(detail=True, methods=['put'], permission_classes=[IsAuthenticated, IsSupplier])
     def assign_driver(self, request, pk=None):
         delivery = self.get_object()
-        return self._run_action_validated(
-            request,
-            lambda d: success_response(
-                data=DeliverySerializer(
-                    DeliveryService.assign_driver_to_delivery(delivery, request.user, d['driver_id'])
-                ).data,
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            updated = DeliveryService.assign_driver_to_delivery(
+                delivery, 
+                request.user, 
+                serializer.validated_data['driver_id']
+            )
+            return success_response(
+                data=DeliverySerializer(updated).data,
                 message='Driver assigned successfully',
-            ),
-            validation_message='Driver assignment failed',
-        )
+            )
+        except BusinessLogicError as e:
+            return error_response(message=str(e.detail), status_code=e.status_code)
 
 
 # ==================== DELIVERY DISCOVERY VIEWS ====================
@@ -377,7 +409,7 @@ class AcceptDeliveryView(generics.UpdateAPIView):
 # ==================== REQUEST TO DRIVER VIEWS ====================
 
 
-class RequestToDriverViewSet(ActionValidationMixin, SuccessResponseListRetrieveMixin, viewsets.ModelViewSet):
+class RequestToDriverViewSet(SuccessResponseListRetrieveMixin, viewsets.ModelViewSet):
     """Driver request management ViewSet"""
     serializer_class = RequestToDriverSerializer
     permission_classes = [IsAuthenticated]
@@ -413,25 +445,31 @@ class RequestToDriverViewSet(ActionValidationMixin, SuccessResponseListRetrieveM
     @action(detail=True, methods=['put'], permission_classes=[IsAuthenticated])
     def propose_price(self, request, pk=None):
         driver_request = self.get_object()
-        return self._run_action_validated(
-            request,
-            lambda d: success_response(
-                data=RequestToDriverSerializer(
-                    RequestToDriverService.propose_price(
-                        driver_request, request.user, d['proposed_price']
-                    )
-                ).data,
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            updated = RequestToDriverService.propose_price(
+                driver_request, 
+                request.user, 
+                serializer.validated_data['proposed_price']
+            )
+            return success_response(
+                data=RequestToDriverSerializer(updated).data,
                 message='Price proposed successfully',
-            ),
-            validation_message='Price proposal failed',
-        )
+            )
+        except BusinessLogicError as e:
+            return error_response(message=str(e.detail), status_code=e.status_code)
     
     @action(detail=True, methods=['put'], permission_classes=[IsAuthenticated])
     def approve(self, request, pk=None):
         driver_request = self.get_object()
-        def run(d):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
             updated = RequestToDriverService.approve_request(
-                driver_request, request.user, d.get('final_price')
+                driver_request, 
+                request.user, 
+                serializer.validated_data.get('final_price')
             )
             if updated.is_fully_approved():
                 msg = 'Request approved by all parties and driver assigned to deal successfully'
@@ -442,7 +480,8 @@ class RequestToDriverViewSet(ActionValidationMixin, SuccessResponseListRetrieveM
                 data=RequestToDriverSerializer(updated).data,
                 message=msg,
             )
-        return self._run_action_validated(request, run, validation_message='Approval failed')
+        except BusinessLogicError as e:
+            return error_response(message=str(e.detail), status_code=e.status_code)
     
     @action(detail=True, methods=['put'], permission_classes=[IsAuthenticated])
     def reject(self, request, pk=None):
