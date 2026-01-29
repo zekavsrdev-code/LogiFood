@@ -11,7 +11,7 @@ class User(AbstractUser, TimeStampedModel):
         SELLER = 'SELLER', 'Seller'
         DRIVER = 'DRIVER', 'Driver'
     
-    email = models.EmailField(blank=True, null=True)
+    email = models.EmailField(blank=True, null=True, unique=True)
     phone_number = models.CharField(max_length=20, blank=True, null=True)
     is_verified = models.BooleanField(default=False)
     avatar = models.ImageField(upload_to='avatars/', blank=True, null=True)
