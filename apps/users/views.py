@@ -109,7 +109,7 @@ class LogoutView(generics.GenericAPIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, *args, **kwargs):
-        UserService.delete_token(request.user)
+        Token.objects.filter(user=request.user).delete()
         return success_response(message="Logout successful")
 
 

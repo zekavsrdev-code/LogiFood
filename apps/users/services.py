@@ -80,11 +80,7 @@ class UserService(BaseService):
         token, _ = Token.objects.get_or_create(user=user)
         return {'token': token.key}
 
-    @classmethod
-    def delete_token(cls, user: User) -> dict:
-        """Delete token for user."""
-        token, _ = Token.objects.get_or_create(user=user)
-        return {'token': token.key}
+    
     
     @classmethod
     def change_password(cls, user: User, old_password: str, new_password: str) -> User:
