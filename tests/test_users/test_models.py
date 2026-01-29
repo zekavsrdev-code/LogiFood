@@ -50,18 +50,18 @@ class TestUserModel:
         assert str(user) == 'testuser (Seller)'
     
     def test_user_email_unique(self):
-        """Test that email can be duplicate (email is no longer unique)"""
+        """Test that email must be unique"""
         User.objects.create_user(
             email='test@example.com',
             username='testuser1',
             password='testpass123',
             role=User.Role.SELLER
         )
-        # Email is no longer unique, so this should succeed
-        user2 = User.objects.create_user(
+        # Email must be unique, so this should fail
+        with pytest.raises(Exception):  # IntegrityError or ValidationError
+            User.objects.create_user(
                 email='test@example.com',
                 username='testuser2',
-            password='testpass123',
-            role=User.Role.SELLER
+                password='testpass123',
+                role=User.Role.SELLER
             )
-        assert user2.email == 'test@example.com'

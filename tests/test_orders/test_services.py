@@ -476,3 +476,134 @@ class TestRequestToDriverService:
         with pytest.raises(BusinessLogicError) as exc:
             RequestToDriverService.reject_request(request, other_user)
         assert exc.value.status_code == status.HTTP_403_FORBIDDEN
+    
+    def test_get_pending_approvals_all_pending(self, deal, driver_user):
+        """Test get_pending_approvals when no one has approved"""
+        request = RequestToDriver.objects.create(
+            deal=deal,
+            driver=driver_user.driver_profile,
+            requested_price=Decimal('150.00'),
+            created_by=deal.seller.user
+        )
+        
+        pending = RequestToDriverService.get_pending_approvals(request)
+        assert len(pending) == 3
+        assert 'supplier' in pending
+        assert 'seller' in pending
+        assert 'driver' in pending
+    
+    def test_get_pending_approvals_partial(self, supplier_user, deal, driver_user):
+        """Test get_pending_approvals when some parties have approved"""
+        deal.supplier = supplier_user.supplier_profile
+        deal.save()
+        
+        request = RequestToDriver.objects.create(
+            deal=deal,
+            driver=driver_user.driver_profile,
+            requested_price=Decimal('150.00'),
+            supplier_approved=True,
+            created_by=deal.seller.user
+        )
+        
+        pending = RequestToDriverService.get_pending_approvals(request)
+        assert len(pending) == 2
+        assert 'supplier' not in pending
+        assert 'seller' in pending
+        assert 'driver' in pending
+    
+    def test_get_pending_approvals_all_approved(self, supplier_user, seller_user, driver_user, deal):
+        """Test get_pending_approvals when all parties have approved"""
+        deal.supplier = supplier_user.supplier_profile
+        deal.seller = seller_user.seller_profile
+        deal.save()
+        
+        request = RequestToDriver.objects.create(
+            deal=deal,
+            driver=driver_user.driver_profile,
+            requested_price=Decimal('150.00'),
+            supplier_approved=True,
+            seller_approved=True,
+            driver_approved=True,
+            created_by=deal.seller.user
+        )
+        
+        pending = RequestToDriverService.get_pending_approvals(request)
+        assert len(pending) == 0
+    
+    def test_propose_price_from_counter_offered_status(self, driver_user, deal):
+        """Test propose_price when status is COUNTER_OFFERED (for future use)"""
+        request = RequestToDriver.objects.create(
+            deal=deal,
+            driver=driver_user.driver_profile,
+            requested_price=Decimal('150.00'),
+            status=RequestToDriver.Status.COUNTER_OFFERED,
+            created_by=deal.seller.user
+        )
+        
+        updated_request = RequestToDriverService.propose_price(request, driver_user, 200.00)
+        assert updated_request.driver_proposed_price == Decimal('200.00')
+        assert updated_request.status == RequestToDriver.Status.DRIVER_PROPOSED
+    
+    def test_counter_offer_flow_with_driver_proposed_price(self, supplier_user, seller_user, driver_user, deal):
+        """Test full counter offer flow: request → driver proposes → all approve"""
+        deal.supplier = supplier_user.supplier_profile
+        deal.seller = seller_user.seller_profile
+        deal.delivery_handler = Deal.DeliveryHandler.SYSTEM_DRIVER
+        deal.save()
+        
+        # 1. Create request with initial price
+        request = RequestToDriver.objects.create(
+            deal=deal,
+            driver=driver_user.driver_profile,
+            requested_price=Decimal('150.00'),
+            created_by=deal.seller.user
+        )
+        assert request.status == RequestToDriver.Status.PENDING
+        
+        # 2. Driver proposes counter offer
+        updated_request = RequestToDriverService.propose_price(request, driver_user, 200.00)
+        assert updated_request.driver_proposed_price == Decimal('200.00')
+        assert updated_request.status == RequestToDriver.Status.DRIVER_PROPOSED
+        
+        # 3. All parties approve the driver's proposed price
+        RequestToDriverService.approve_request(updated_request, supplier_user, 200.00)
+        updated_request.refresh_from_db()
+        assert updated_request.supplier_approved is True
+        
+        RequestToDriverService.approve_request(updated_request, seller_user, 200.00)
+        updated_request.refresh_from_db()
+        assert updated_request.seller_approved is True
+        
+        RequestToDriverService.approve_request(updated_request, driver_user, 200.00)
+        updated_request.refresh_from_db()
+        assert updated_request.driver_approved is True
+        assert updated_request.status == RequestToDriver.Status.ACCEPTED
+        assert updated_request.final_price == Decimal('200.00')  # Driver's proposed price is used
+    
+    def test_propose_price_invalid_status(self, driver_user, deal):
+        """Test propose_price fails when status is not PENDING or COUNTER_OFFERED"""
+        request = RequestToDriver.objects.create(
+            deal=deal,
+            driver=driver_user.driver_profile,
+            requested_price=Decimal('150.00'),
+            status=RequestToDriver.Status.ACCEPTED,
+            created_by=deal.seller.user
+        )
+        
+        with pytest.raises(BusinessLogicError) as exc:
+            RequestToDriverService.propose_price(request, driver_user, 175.00)
+        assert exc.value.status_code == status.HTTP_400_BAD_REQUEST
+    
+    def test_propose_price_rejected_status(self, driver_user, deal):
+        """Test propose_price fails when status is REJECTED"""
+        request = RequestToDriver.objects.create(
+            deal=deal,
+            driver=driver_user.driver_profile,
+            requested_price=Decimal('150.00'),
+            status=RequestToDriver.Status.REJECTED,
+            created_by=deal.seller.user
+        )
+        
+        with pytest.raises(BusinessLogicError) as exc:
+            RequestToDriverService.propose_price(request, driver_user, 175.00)
+        assert exc.value.status_code == status.HTTP_400_BAD_REQUEST

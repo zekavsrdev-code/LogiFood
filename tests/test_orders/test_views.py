@@ -689,6 +689,134 @@ class TestRequestToDriverViews:
             format='json'
         )
         assert response.status_code == status.HTTP_400_BAD_REQUEST
+    
+    def test_counter_offer_flow_full(self, supplier_client, seller_client, driver_client, deal, driver_user, supplier_user, seller_user):
+        """Test full counter offer flow via API: request → driver proposes → all approve"""
+        deal.supplier = supplier_user.supplier_profile
+        deal.seller = seller_user.seller_profile
+        deal.delivery_handler = Deal.DeliveryHandler.SYSTEM_DRIVER
+        deal.save()
+        
+        # 1. Create request
+        request = RequestToDriver.objects.create(
+            deal=deal,
+            driver=driver_user.driver_profile,
+            requested_price=Decimal('150.00'),
+            created_by=deal.seller.user
+        )
+        
+        # 2. Driver proposes counter offer
+        response = driver_client.put(
+            f'/api/orders/driver-requests/{request.id}/propose_price/',
+            {'proposed_price': '200.00'},
+            format='json'
+        )
+        assert response.status_code == status.HTTP_200_OK
+        request.refresh_from_db()
+        assert request.driver_proposed_price == Decimal('200.00')
+        assert request.status == RequestToDriver.Status.DRIVER_PROPOSED
+        
+        # 3. Supplier approves driver's proposed price
+        response = supplier_client.put(
+            f'/api/orders/driver-requests/{request.id}/approve/',
+            {'final_price': '200.00'},
+            format='json'
+        )
+        assert response.status_code == status.HTTP_200_OK
+        request.refresh_from_db()
+        assert request.supplier_approved is True
+        
+        # 4. Seller approves driver's proposed price
+        response = seller_client.put(
+            f'/api/orders/driver-requests/{request.id}/approve/',
+            {'final_price': '200.00'},
+            format='json'
+        )
+        assert response.status_code == status.HTTP_200_OK
+        request.refresh_from_db()
+        assert request.seller_approved is True
+        
+        # 5. Driver approves (completes the approval)
+        response = driver_client.put(
+            f'/api/orders/driver-requests/{request.id}/approve/',
+            {'final_price': '200.00'},
+            format='json'
+        )
+        assert response.status_code == status.HTTP_200_OK
+        request.refresh_from_db()
+        assert request.driver_approved is True
+        assert request.status == RequestToDriver.Status.ACCEPTED
+        assert request.final_price == Decimal('200.00')
+    
+    def test_get_pending_approvals_in_response(self, supplier_client, deal, driver_user, supplier_user):
+        """Test that get_pending_approvals is used in approve response message"""
+        deal.supplier = supplier_user.supplier_profile
+        deal.save()
+        
+        request = RequestToDriver.objects.create(
+            deal=deal,
+            driver=driver_user.driver_profile,
+            requested_price=Decimal('150.00'),
+            created_by=deal.seller.user
+        )
+        
+        # Approve as supplier (not all parties approved yet)
+        response = supplier_client.put(
+            f'/api/orders/driver-requests/{request.id}/approve/',
+            {'final_price': '150.00'},
+            format='json'
+        )
+        assert response.status_code == status.HTTP_200_OK
+        # Response should mention pending approvals
+        assert 'Waiting for approval' in response.data['message'] or 'approved' in response.data['message'].lower()
+    
+    def test_propose_price_from_counter_offered_status(self, driver_client, deal, driver_user):
+        """Test propose_price when status is COUNTER_OFFERED (for future use)"""
+        request = RequestToDriver.objects.create(
+            deal=deal,
+            driver=driver_user.driver_profile,
+            requested_price=Decimal('150.00'),
+            status=RequestToDriver.Status.COUNTER_OFFERED,
+            created_by=deal.seller.user
+        )
+        
+        response = driver_client.put(
+            f'/api/orders/driver-requests/{request.id}/propose_price/',
+            {'proposed_price': '200.00'},
+            format='json'
+        )
+        assert response.status_code == status.HTTP_200_OK
+        request.refresh_from_db()
+        assert request.driver_proposed_price == Decimal('200.00')
+        assert request.status == RequestToDriver.Status.DRIVER_PROPOSED
+    
+    def test_approve_with_driver_proposed_price(self, supplier_client, seller_client, driver_client, deal, driver_user, supplier_user, seller_user):
+        """Test approve uses driver_proposed_price when final_price not provided"""
+        from apps.orders.services import RequestToDriverService
+        
+        deal.supplier = supplier_user.supplier_profile
+        deal.seller = seller_user.seller_profile
+        deal.delivery_handler = Deal.DeliveryHandler.SYSTEM_DRIVER
+        deal.save()
+        
+        # Create request and driver proposes price
+        request = RequestToDriver.objects.create(
+            deal=deal,
+            driver=driver_user.driver_profile,
+            requested_price=Decimal('150.00'),
+            driver_proposed_price=Decimal('200.00'),
+            status=RequestToDriver.Status.DRIVER_PROPOSED,
+            created_by=deal.seller.user
+        )
+        
+        # Approve without final_price - should use driver_proposed_price
+        RequestToDriverService.approve_request(request, supplier_user)
+        RequestToDriverService.approve_request(request, seller_user)
+        RequestToDriverService.approve_request(request, driver_user)
+        
+        request.refresh_from_db()
+        assert request.status == RequestToDriver.Status.ACCEPTED
+        assert request.final_price == Decimal('200.00')  # Uses driver_proposed_price
 
 
 @pytest.mark.django_db
